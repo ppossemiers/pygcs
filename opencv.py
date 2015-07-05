@@ -19,11 +19,11 @@ class PID:
         self.gaz_1 = 0
 
     def compute_control_command(self, errx, erry):
-        # Roll angle
-        phi = self.Kp * errx + self.Ki * (errx + self.errx_1) + self.Kd * (errx - self.errx_1)
-        # Vertical speed
-        gaz = self.Kp * errx + self.Ki * (errx + self.erry_1) + self.Kd * (errx - self.erry_1)
-
+        # roll angle
+        phi = self.Kpx * errx + self.Kix * (errx + self.errx_1) + self.Kdx * (errx - self.errx_1)
+        # vertical speed
+        gaz = self.Kpy * erry + self.Kiy * (erry + self.erry_1) + self.Kdy * (erry - self.erry_1)
+        # remember values
         self.errx_1 = errx
         self.erry_1 = erry
         self.phi_1 = phi
@@ -37,9 +37,9 @@ class UserCode:
         self.use_camera = use_camera
         #self.video  = cv2.VideoWriter('video.avi' + str(datetime.now()), -1, 25, (320, 240))
 
-    def distance(ctr, dim, siz):
-        siz = siz / 2
-        return (ctr[dim] - siz) / float(siz)
+    def distance(self, ctr, dim, siz):
+        siz = (siz / 2) * 1.0
+        return (ctr[dim] - siz) / siz
 
     def process_frame(self, frame):
         #video.write(frame)
@@ -47,28 +47,20 @@ class UserCode:
         blurred = cv2.GaussianBlur(gray, (7, 7), 0)
         edged = cv2.Canny(blurred, 50, 150)
 
-        # find contours in the edge map
         (cnts, _) = cv2.findContours(edged.copy(), cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
 
         for c in cnts:
-            # approximate the contour
             peri = cv2.arcLength(c, True)
             approx = cv2.approxPolyDP(c, 0.01 * peri, True)
 
-            # ensure that the approximated contour is 'roughly' rectangular
             if len(approx) >= 4 and len(approx) <= 6:
-                # compute the bounding box of the approximated contour and
-                # use the bounding box to compute the aspect ratio
                 (x, y, w, h) = cv2.boundingRect(approx)
                 aspectRatio = w / float(h)
 
-                # compute the solidity of the original contour
                 area = cv2.contourArea(c)
                 hullArea = cv2.contourArea(cv2.convexHull(c))
                 solidity = area / float(hullArea)
 
-                # compute whether or not the width and height, solidity, and
-                # aspect ratio of the contour falls within appropriate bounds
                 keepDims = w > 25 and h > 25
                 keepSolidity = solidity > 0.9
                 keepAspectRatio = aspectRatio >= 0.8 and aspectRatio <= 1.2
@@ -76,15 +68,14 @@ class UserCode:
                 if keepDims and keepSolidity and keepAspectRatio:
                     cv2.drawContours(frame, [approx], -1, (0, 0, 255), 4)
 
-                    M = cv2.moments(approx)
-                    # center
-                    ctr = (int(M['m10'] / M['m00']), int(M['m01'] / M['m00']))
                     # apply PID control
-                    errx =  distance(ctr, 0, img_width)
-                    erry = -distance(ctr, 1, img_height)
-                    errx = 5
-                    erry = -5
+                    M = cv2.moments(approx)
+                    ctr = (int(M['m10'] / M['m00']), int(M['m01'] / M['m00']))
+                    errx =  self.distance(ctr, 0, 320)
+                    erry = -self.distance(ctr, 1, 240)
                     print self.pid.compute_control_command(errx, erry)
+
+        cv2.imshow('Feed', frame)
 
     def run(self):
         alt_limit = 3
@@ -94,7 +85,6 @@ class UserCode:
         pygame.init()
         clock = pygame.time.Clock()
         drone = libardrone.ARDrone()
-        drone.trim()
         running = True
 
         if self.use_camera:
@@ -116,10 +106,8 @@ class UserCode:
                             running = False
                         # takeoff / land
                         elif event.key == pygame.K_RETURN:
-                            print 'TakeOff'
                             drone.takeoff()
                         elif event.key == pygame.K_SPACE:
-                            print 'Land'
                             drone.land()
                         # emergency
                         elif event.key == pygame.K_BACKSPACE:
@@ -154,8 +142,7 @@ class UserCode:
                     drone.move_down()
                     drone.hover()
                 bat = drone.navdata.get(0).get('battery')
-                if bat < 5 and self.use_camera:
-                    cv2.putText(frame, 'Low battery alert!', (100, 100), cv2.FONT_HERSHEY_SIMPLEX, 1.0, (0, 0, 255), 2, 2, False)
+                if bat < 5:
                     drone.land()
 
                 if self.use_camera:
@@ -165,7 +152,6 @@ class UserCode:
                     cv2.putText(frame, 'Alt : ' + str(alt) + 'm', (10, 50), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 0, 255), 2, 2, False)
 
                     self.process_frame(frame)
-                    cv2.imshow('Feed', frame)
 
                     clock.tick(35)
             except:
@@ -179,5 +165,5 @@ class UserCode:
         sys.exit()
 
 if __name__ == '__main__':
-    uc = UserCode(False)
+    uc = UserCode()
     uc.run()
