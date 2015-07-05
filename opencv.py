@@ -1,6 +1,7 @@
 import libardrone
 import cv2
 import pygame
+import datetime
 import sys
 
 # https://cranklin.wordpress.com/2014/11/14/artificial-intelligence-applied-to-your-drone/
@@ -32,17 +33,20 @@ class PID:
         return (phi, gaz)
 
 class UserCode:
-    def __init__(self, use_camera=True):
+    def __init__(self, use_camera=True, record_video=False):
         self.pid = PID()
         self.use_camera = use_camera
-        #self.video  = cv2.VideoWriter('video.avi' + str(datetime.now()), -1, 25, (320, 240))
+        self.record_video = record_video
+        if self.record_video:
+            self.video  = cv2.VideoWriter('flight-' + str(datetime.now()), -1, 25, (320, 240))
 
     def distance(self, ctr, dim, siz):
         siz = (siz / 2) * 1.0
         return (ctr[dim] - siz) / siz
 
     def process_frame(self, frame):
-        #video.write(frame)
+        if self.record_video:
+            video.write(frame)
         gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
         blurred = cv2.GaussianBlur(gray, (7, 7), 0)
         edged = cv2.Canny(blurred, 50, 150)
@@ -73,7 +77,7 @@ class UserCode:
                     ctr = (int(M['m10'] / M['m00']), int(M['m01'] / M['m00']))
                     errx =  self.distance(ctr, 0, 320)
                     erry = -self.distance(ctr, 1, 240)
-                    print self.pid.compute_control_command(errx, erry)
+                    self.pid.compute_control_command(errx, erry)
 
         cv2.imshow('Feed', frame)
 
