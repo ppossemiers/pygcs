@@ -28,14 +28,17 @@ def get_map():
     cv_array = cv2.imdecode(png_bytes, cv2.CV_LOAD_IMAGE_UNCHANGED)
     cv2.imwrite(FILE_NAME, cv_array)
 
-get_map()
-cv2.namedWindow('Map')
-cv2.startWindowThread()
-map = cv2.imread('staticmap.png', 1)
-locations = []
-locations.append(CENTER)
-for (x, y) in locations:
-    coords = plot_lat_lon(x, y)
-while True:
-    cv2.circle(map, coords, 2, (0, 0, 255), 2)
-    cv2.imshow('Map', map)
+try:
+    get_map()
+    cv2.namedWindow('Map')
+    cv2.startWindowThread()
+    map = cv2.imread('staticmap.png', 1)
+    locations = []
+    locations.append(CENTER)
+    for (x, y) in locations:
+        coords = plot_lat_lon(x, y)
+    while True:
+        cv2.circle(map, coords, 2, (0, 0, 255), 2)
+        cv2.imshow('Map', map)
+except:
+    print 'No map generated. Maybe check you network connection?'

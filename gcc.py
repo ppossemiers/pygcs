@@ -180,6 +180,7 @@ class GCC:
         alt = 0
 
         pygame.init()
+        clock = pygame.time.Clock()
         drone = libardrone.ARDrone()
         running = True
         camera = cv2.VideoCapture('tcp://192.168.1.1:5555')
@@ -193,7 +194,6 @@ class GCC:
                         drone.hover()
                     elif event.type == pygame.KEYDOWN:
                         if event.key == pygame.K_ESCAPE:
-                            drone.reset()
                             running = False
                         # takeoff / land
                         elif event.key == pygame.K_RETURN:
@@ -238,14 +238,16 @@ class GCC:
                 ret, frame = camera.read()
                 cv2.putText(frame, 'Bat : ' + str(bat) + '%', (10, 20), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 0, 255), 2, 2, False)
                 cv2.putText(frame, 'Alt : ' + str(alt) + 'm', (10, 50), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 0, 255), 2, 2, False)
-                self.find_qr(frame)
-
+                #self.find_qr(frame)
+                cv2.imshow('Video', frame)
+                # limit to 35 fps
+                clock.tick(35)
             except:
                 pass
 
         print 'Shutting down...'
-        drone.halt()
         camera.release()
+        drone.halt()
         cv2.destroyAllWindows()
         self.t1._Thread__stop()
         print 'Finished'
@@ -270,13 +272,13 @@ class GCC:
 
                 gps_data = sock.recv(1024).rstrip('\n')
                 if gps_data.find('*') != -1:
-                    cv2.putText(map, 'No gps satellite fix', (10, 20), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 0, 255), 2, 2, False)
+                    cv2.putText(map, 'No satellite fix', (10, 20), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 0, 255), 2, 2, False)
                 else:
                     # lat, lon, course, speed
                     list = gps_data.split()
                     #print list[3]
-                    #if (float(list[3]) > 0.1):
-                    locations.append((float(list[0]), float(list[1])))
+                    if (float(list[3]) > 0.1):
+                        locations.append((float(list[0]), float(list[1])))
 
                     # draw all visited locations
                     for loc in locations:

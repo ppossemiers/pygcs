@@ -21,7 +21,7 @@ class GCC:
                         drone.hover()
                     elif event.type == pygame.KEYDOWN:
                         if event.key == pygame.K_ESCAPE:
-                            drone.reset()
+                            #drone.reset()
                             running = False
                         # takeoff / land
                         elif event.key == pygame.K_RETURN:
