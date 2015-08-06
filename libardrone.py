@@ -38,15 +38,13 @@ import arnetwork
 __author__ = "Bastian Venthur"
 
 ARDRONE_NAVDATA_PORT = 5554
-ARDRONE_VIDEO_PORT = 5555
 ARDRONE_COMMAND_PORT = 5556
 
 
 class ARDrone(object):
     """ARDrone Class.
 
-    Instanciate this class to control your drone and receive decoded video and
-    navdata.
+    Instantiate this class to control your drone and receive navdata.
     """
 
     def __init__(self):
@@ -54,8 +52,10 @@ class ARDrone(object):
         self.timer_t = 0.2
         self.com_watchdog_timer = threading.Timer(self.timer_t, self.commwdg)
         self.lock = threading.Lock()
-        self.speed = 1.0
+        self.speed = 2.0
         self.at(at_config, "general:navdata_demo", "TRUE")
+        self.at(at_config, "control:outdoor", "TRUE")
+        self.at(at_config, "control:flight_without_shell", "TRUE")
         self.nav_pipe, nav_pipe_other = multiprocessing.Pipe()
         self.com_pipe, com_pipe_other = multiprocessing.Pipe()
         self.network_process = arnetwork.ARDroneNetworkProcess(nav_pipe_other, com_pipe_other)
@@ -137,6 +137,7 @@ class ARDrone(object):
         """
         self.lock.acquire()
         self.com_watchdog_timer.cancel()
+        self.seq_nr = 1
         cmd(self.seq_nr, *args, **kwargs)
         self.seq_nr += 1
         self.com_watchdog_timer = threading.Timer(self.timer_t, self.commwdg)
@@ -146,7 +147,7 @@ class ARDrone(object):
     def commwdg(self):
         """Communication watchdog signal.
 
-        This needs to be send regulary to keep the communication w/ the drone
+        This needs to be sent regulary to keep the communication w/ the drone
         alive.
         """
         self.at(at_comwdg)
@@ -390,63 +391,3 @@ def decode_navdata(packet):
                 #values[i] /= 1000
         data[id_nr] = values
     return data
-
-
-if __name__ == "__main__":
-
-    import termios
-    import fcntl
-    import os
-
-    fd = sys.stdin.fileno()
-
-    oldterm = termios.tcgetattr(fd)
-    newattr = termios.tcgetattr(fd)
-    newattr[3] = newattr[3] & ~termios.ICANON & ~termios.ECHO
-    termios.tcsetattr(fd, termios.TCSANOW, newattr)
-
-    oldflags = fcntl.fcntl(fd, fcntl.F_GETFL)
-    fcntl.fcntl(fd, fcntl.F_SETFL, oldflags | os.O_NONBLOCK)
-
-    drone = ARDrone()
-
-    try:
-        while 1:
-            try:
-                c = sys.stdin.read(1)
-                c = c.lower()
-                print "Got character", c
-                if c == 'a':
-                    drone.move_left()
-                if c == 'd':
-                    drone.move_right()
-                if c == 'w':
-                    drone.move_forward()
-                if c == 's':
-                    drone.move_backward()
-                if c == ' ':
-                    drone.land()
-                if c == '\n':
-                    drone.takeoff()
-                if c == 'q':
-                    drone.turn_left()
-                if c == 'e':
-                    drone.turn_right()
-                if c == '1':
-                    drone.move_up()
-                if c == '2':
-                    drone.hover()
-                if c == '3':
-                    drone.move_down()
-                if c == 't':
-                    drone.reset()
-                if c == 'x':
-                    drone.hover()
-                if c == 'y':
-                    drone.trim()
-            except IOError:
-                pass
-    finally:
-        termios.tcsetattr(fd, termios.TCSAFLUSH, oldterm)
-        fcntl.fcntl(fd, fcntl.F_SETFL, oldflags)
-        drone.halt()

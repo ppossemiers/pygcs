@@ -30,7 +30,6 @@ import multiprocessing
 
 import libardrone
 
-
 class ARDroneNetworkProcess(multiprocessing.Process):
     """ARDrone Network Process.
 
@@ -51,22 +50,25 @@ class ARDroneNetworkProcess(multiprocessing.Process):
 
         stopping = False
         while not stopping:
-            inputready, outputready, exceptready = select.select([nav_socket, self.com_pipe], [], [])
-            for i in inputready:
-                if i == nav_socket:
-                    while 1:
-                        try:
-                            data = nav_socket.recv(65535)
-                        except IOError:
-                            # we consumed every packet from the socket and
-                            # continue with the last one
-                            break
-                    navdata = libardrone.decode_navdata(data)
-                    self.nav_pipe.send(navdata)
-                elif i == self.com_pipe:
-                    _ = self.com_pipe.recv()
-                    stopping = True
-                    break
+            try:
+                inputready, outputready, exceptready = select.select([nav_socket, self.com_pipe], [], [])
+                for i in inputready:
+                    if i == nav_socket:
+                        while 1:
+                            try:
+                                data = nav_socket.recv(65535)
+                            except IOError:
+                                # we consumed every packet from the socket and
+                                # continue with the last one
+                                break
+                        navdata = libardrone.decode_navdata(data)
+                        self.nav_pipe.send(navdata)
+                    elif i == self.com_pipe:
+                        _ = self.com_pipe.recv()
+                        stopping = True
+                        break
+            except:
+                pass
         nav_socket.close()
 
 
