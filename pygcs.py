@@ -1,5 +1,5 @@
 import libardrone
-import cv2
+import cv2 # brew install opencv --with-ffmpeg
 import numpy as np
 import pygame
 import time
@@ -7,7 +7,7 @@ import sys
 import socket
 import threading
 
-# https://cranklin.wordpress.com/2014/11/14/artificial-intelligence-applied-to-your-drone/
+# https://cranklin.wordpress.com/2014/11/14/artificial-intelligence-applied-to-your-drone
 class PID:
     def __init__(self, Kpx=0.25, Kpy=0.25, Kdx=0.25, Kdy=0.25, Kix=0.0, Kiy=0.0):
         self.Kpx = Kpx
@@ -23,9 +23,9 @@ class PID:
         self.gaz_1 = 0
 
     def compute_control_command(self, errx, erry):
-        # roll angle
+        # lef / right
         phi = self.Kpx * errx + self.Kix * (errx + self.errx_1) + self.Kdx * (errx - self.errx_1)
-        # vertical speed
+        # up / down
         gaz = self.Kpy * erry + self.Kiy * (erry + self.erry_1) + self.Kdy * (erry - self.erry_1)
         # remember values
         self.errx_1 = errx
@@ -35,16 +35,20 @@ class PID:
 
         return (phi, gaz)
 
-# Ground Control Center
-class GCC:
+# Ground Control Station
+class GCS:
     def __init__(self, map_center=(51.195323, 4.464865), map_zoom=20, map_scale=1,
                 map_height=640, map_name='staticmap.png', use_gps=True):
+
+        self.drone = libardrone.ARDrone()
         self.pid = PID()
         self.map_center = map_center
         self.map_zoom = map_zoom
         self.map_scale = map_scale
         self.map_height = map_height
         self.map_name = map_name
+        self.flight_data_bg = 'flight_data.png'
+        self.gps_data = []
         self.waypoints = []
 
         # gps tracking
@@ -54,6 +58,12 @@ class GCC:
             cv2.cv.SetMouseCallback('Map', self.mouse_click)
             self.t1 = threading.Thread(target=self.process_gps)
             self.t1.start()
+
+        # flight data
+        cv2.namedWindow('Flight Data')
+        cv2.moveWindow('Flight Data', 0, 405)
+        self.t2 = threading.Thread(target=self.process_flight_data)
+        self.t2.start()
 
         # object tracking
         cv2.namedWindow('Video')
@@ -87,8 +97,7 @@ class GCC:
 
     # get lat and lon from x, y coordinates
     def get_lat_lon(self, x, y):
-        grid_x = x - (self.map_height / 2)
-        grid_y = -1 * (y - (self.map_height / 2))
+        grid_x, grid_y = x - (self.map_height / 2), -1 * (y - (self.map_height / 2))
         degrees_in_map = (self.map_height / 256.0) * (360.0 / pow(2, self.map_zoom))
         offset_x_degrees = (float(grid_x) / self.map_height) * degrees_in_map
         offset_y_degrees = (float(grid_y) / self.map_scale) * degrees_in_map
@@ -176,12 +185,8 @@ class GCC:
             pass
 
     def process_video(self):
-        bat = 0
-        alt = 0
-
         pygame.init()
         clock = pygame.time.Clock()
-        drone = libardrone.ARDrone()
         running = True
         camera = cv2.VideoCapture('tcp://192.168.1.1:5555')
 
@@ -191,55 +196,44 @@ class GCC:
                     if event.type == pygame.QUIT:
                         running = False
                     elif event.type == pygame.KEYUP:
-                        drone.hover()
+                        self.drone.hover()
                     elif event.type == pygame.KEYDOWN:
                         if event.key == pygame.K_ESCAPE:
                             running = False
                         # takeoff / land
                         elif event.key == pygame.K_RETURN:
-                            drone.takeoff()
+                            self.drone.takeoff()
                         elif event.key == pygame.K_SPACE:
-                            drone.land()
+                            self.drone.land()
                         # emergency
                         elif event.key == pygame.K_BACKSPACE:
-                            drone.reset()
+                            self.drone.reset()
                         # forward / backward
                         elif event.key == pygame.K_w:
-                            drone.move_forward()
+                            self.drone.move_forward()
                         elif event.key == pygame.K_s:
-                            drone.move_backward()
+                            self.drone.move_backward()
                         # left / right
                         elif event.key == pygame.K_a:
-                            drone.move_left()
+                            self.drone.move_left()
                         elif event.key == pygame.K_d:
-                            drone.move_right()
+                            self.drone.move_right()
                         # trim
                         elif event.key == pygame.K_t:
-                            drone.trim()
+                            self.drone.trim()
                         # up / down
                         elif event.key == pygame.K_UP:
-                            drone.move_up()
+                            self.drone.move_up()
                         elif event.key == pygame.K_DOWN:
-                            drone.move_down()
+                            self.drone.move_down()
                         # turn left / turn right
                         elif event.key == pygame.K_LEFT:
-                            drone.turn_left()
+                            self.drone.turn_left()
                         elif event.key == pygame.K_RIGHT:
-                            drone.turn_right()
+                            self.drone.turn_right()
 
-                alt = round(drone.navdata.get(0).get('altitude') / 1000.0, 2)
-                bat = drone.navdata.get(0).get('battery')
-                #vx = drone.navdata.get(0).get('vx')
-                #vy = drone.navdata.get(0).get('vy')
-                #self.moving = (abs(int(vx)) > 10.0) or (abs(int(vy)) > 10.0)
-                #print self.moving
-                if (bat <= 5): drone.land()
-
-                ret, frame = camera.read()
-                cv2.putText(frame, 'Bat : ' + str(bat) + '%', (10, 20), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 0, 255), 2, 2, False)
-                cv2.putText(frame, 'Alt : ' + str(alt) + 'm', (10, 50), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 0, 255), 2, 2, False)
-                #self.find_qr(frame)
-                cv2.imshow('Video', frame)
+                _, frame = camera.read()
+                self.find_qr(frame)
                 # limit to 35 fps
                 clock.tick(35)
             except:
@@ -247,9 +241,10 @@ class GCC:
 
         print 'Shutting down...'
         camera.release()
-        drone.halt()
+        self.drone.halt()
         cv2.destroyAllWindows()
         self.t1._Thread__stop()
+        self.t2._Thread__stop()
         print 'Finished'
         sys.exit()
 
@@ -257,6 +252,8 @@ class GCC:
         sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         sock.connect(('192.168.1.1', 4567))
         locations = []
+        locations.append(self.map_center)
+
         while True:
             try:
                 prev_wp = None
@@ -270,27 +267,44 @@ class GCC:
                     if (prev_wp): cv2.line(map, wp, prev_wp, (0, 255, 0), 1)
                     prev_wp = wp
 
-                gps_data = sock.recv(1024).rstrip('\n')
-                if gps_data.find('*') != -1:
-                    cv2.putText(map, 'No satellite fix', (10, 20), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 0, 255), 2, 2, False)
-                else:
-                    # lat, lon, course, speed
-                    list = gps_data.split()
-                    #print list[3]
-                    if (float(list[3]) > 0.1):
-                        locations.append((float(list[0]), float(list[1])))
+                gps_string = sock.recv(1024).rstrip('\n')
+                # lat, lon, alt, course, speed
+                self.gps_data = gps_string.split()
+                # if we are moving
+                if (float(self.gps_data[4]) > 1.0):
+                    locations.append((self.gps_data(list[0]), self.gps_data(list[1])))
 
-                    # draw all visited locations
-                    for loc in locations:
-                        coords = self.get_x_y(loc[0], loc[1])
-                        cv2.circle(map, coords, 1, (0, 0, 255), 1)
-                        if (prev_coords): cv2.line(map, coords, prev_coords, (0, 0, 255), 1)
-                        prev_coords = coords
+                # draw all visited locations
+                for loc in locations:
+                    coords = self.get_x_y(loc[0], loc[1])
+                    cv2.circle(map, coords, 1, (255, 255, 255), 1)
+                    if (prev_coords): cv2.line(map, coords, prev_coords, (0, 0, 255), 1)
+                    prev_coords = coords
 
                 cv2.imshow('Map', map)
+            except:
+                pass
 
+    def process_flight_data(self):
+        while True:
+            try:
+                # reread background to clear everything
+                flight_data = cv2.imread(self.flight_data_bg, 1)
+                # TODO : get number of satellites
+                #if self.gps_data[0].find('*') != -1:
+                    #cv2.putText(flight_data, 'No satellite fix', (10, 20), cv2.FONT_HERSHEY_SIMPLEX, 1.0, (0, 0, 255), 2, 2, False)
+
+                # ['ctrl_state', 'battery', 'theta', 'phi', 'psi', 'altitude', 'vx', 'vy', 'vz', 'num_frames']
+                bat = self.drone.navdata.get(0).get('battery')
+                alt = self.drone.navdata.get(0).get('altitude')
+                speed = self.gps_data[4]
+                cv2.putText(flight_data, 'Bat : ' + str(bat) + '%', (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 1.0, (0, 255, 0), 2, 2, False)
+                cv2.putText(flight_data, 'Alt : ' + str(alt) + 'm', (10, 70), cv2.FONT_HERSHEY_SIMPLEX, 1.0, (0, 255, 0), 2, 2, False)
+                cv2.putText(flight_data, 'Speed : ' + str(speed) + 'm', (10, 110), cv2.FONT_HERSHEY_SIMPLEX, 1.0, (0, 255, 0), 2, 2, False)
+
+                cv2.imshow('Flight Data', flight_data)
             except:
                 pass
 
 if __name__ == '__main__':
-    gcc = GCC()
+    gcs = GCS()

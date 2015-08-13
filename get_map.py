@@ -5,8 +5,8 @@ import urllib2
 MAP_HEIGHT = 640
 SCALE = 1
 ZOOM = 20
-LAT = 51.195315
-LONG = 4.464950
+LAT = 51.195340
+LONG = 4.465070
 CENTER = (LAT, LONG)
 BASE_URL = 'http://maps.googleapis.com/maps/api/staticmap'
 FILE_NAME = 'staticmap.png'

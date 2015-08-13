@@ -52,7 +52,7 @@ class ARDrone(object):
         self.timer_t = 0.2
         self.com_watchdog_timer = threading.Timer(self.timer_t, self.commwdg)
         self.lock = threading.Lock()
-        self.speed = 2.0
+        self.speed = 1.0
         self.at(at_config, "general:navdata_demo", "TRUE")
         self.at(at_config, "control:outdoor", "TRUE")
         self.at(at_config, "control:flight_without_shell", "TRUE")
