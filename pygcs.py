@@ -268,7 +268,7 @@ class GCS:
                     prev_wp = wp
 
                 gps_string = sock.recv(1024).rstrip('\n')
-                # lat, lon, alt, course, speed
+                # lat, lon, alt, course, speed, satellites
                 self.gps_data = gps_string.split()
                 # if we are moving
                 if (float(self.gps_data[4]) > 1.0):
@@ -280,6 +280,7 @@ class GCS:
                     cv2.circle(map, coords, 1, (255, 255, 255), 1)
                     if (prev_coords): cv2.line(map, coords, prev_coords, (0, 0, 255), 1)
                     prev_coords = coords
+                    # TODO : draw larger circle around last location
 
                 cv2.imshow('Map', map)
             except:
@@ -290,17 +291,26 @@ class GCS:
             try:
                 # reread background to clear everything
                 flight_data = cv2.imread(self.flight_data_bg, 1)
-                # TODO : get number of satellites
-                #if self.gps_data[0].find('*') != -1:
-                    #cv2.putText(flight_data, 'No satellite fix', (10, 20), cv2.FONT_HERSHEY_SIMPLEX, 1.0, (0, 0, 255), 2, 2, False)
-
-                # ['ctrl_state', 'battery', 'theta', 'phi', 'psi', 'altitude', 'vx', 'vy', 'vz', 'num_frames']
                 bat = self.drone.navdata.get(0).get('battery')
-                alt = self.drone.navdata.get(0).get('altitude')
+                alt1 = self.drone.navdata.get(0).get('altitude')
+                lat = self.gps_data[0]
+                lon = self.gps_data[1]
+                alt2 = self.gps_data[2]
+                course = self.gps_data[3]
                 speed = self.gps_data[4]
-                cv2.putText(flight_data, 'Bat : ' + str(bat) + '%', (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 1.0, (0, 255, 0), 2, 2, False)
-                cv2.putText(flight_data, 'Alt : ' + str(alt) + 'm', (10, 70), cv2.FONT_HERSHEY_SIMPLEX, 1.0, (0, 255, 0), 2, 2, False)
-                cv2.putText(flight_data, 'Speed : ' + str(speed) + 'm', (10, 110), cv2.FONT_HERSHEY_SIMPLEX, 1.0, (0, 255, 0), 2, 2, False)
+                sats = self.gps_data[5]
+                pitch = self.drone.navdata.get(0).get('theta')
+                roll = self.drone.navdata.get(0).get('phi')
+                yaw = self.drone.navdata.get(0).get('psi')
+
+                cv2.putText(flight_data, 'Bat : ' + str(bat) + '%', (10, 20), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 255, 0), 2, 2, False)
+                cv2.putText(flight_data, 'Alt : ' + str(alt1) + 'm', (10, 50), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 255, 0), 2, 2, False)
+                cv2.putText(flight_data, 'Alt GPS : ' + str(alt2) + 'm', (10, 80), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 255, 0), 2, 2, False)
+                cv2.putText(flight_data, 'Speed : ' + str(speed) + 'km/h', (10, 110), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 255, 0), 2, 2, False)
+                cv2.putText(flight_data, 'Sats : ' + str(sats), (10, 140), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 255, 0), 2, 2, False)
+                cv2.putText(flight_data, 'Lat : ' + str(lat), (10, 170), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 255, 0), 2, 2, False)
+                cv2.putText(flight_data, 'Lon : ' + str(lon), (10, 200), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 255, 0), 2, 2, False)
+                cv2.putText(flight_data, 'Course : ' + str(course) + 'deg', (10, 230), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 255, 0), 2, 2, False)
 
                 cv2.imshow('Flight Data', flight_data)
             except:
