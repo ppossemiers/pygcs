@@ -139,7 +139,7 @@ class ARDrone(object):
         self.com_watchdog_timer.cancel()
         self.seq_nr = 1
         cmd(self.seq_nr, *args, **kwargs)
-        self.seq_nr += 1
+        #self.seq_nr += 1
         self.com_watchdog_timer = threading.Timer(self.timer_t, self.commwdg)
         self.com_watchdog_timer.start()
         self.lock.release()

@@ -23,7 +23,7 @@ class PID:
         self.gaz_1 = 0
 
     def compute_control_command(self, errx, erry):
-        # lef / right
+        # left / right
         phi = self.Kpx * errx + self.Kix * (errx + self.errx_1) + self.Kdx * (errx - self.errx_1)
         # up / down
         gaz = self.Kpy * erry + self.Kiy * (erry + self.erry_1) + self.Kdy * (erry - self.erry_1)
@@ -47,23 +47,24 @@ class GCS:
         self.map_scale = map_scale
         self.map_height = map_height
         self.map_name = map_name
+        self.use_gps = use_gps
         self.flight_data_bg = 'flight_data.png'
         self.gps_data = []
         self.waypoints = []
 
         # gps tracking
-        if (use_gps):
+        if (self.use_gps):
             cv2.namedWindow('Map')
             cv2.moveWindow('Map', self.map_height, 0)
             cv2.cv.SetMouseCallback('Map', self.mouse_click)
-            self.t1 = threading.Thread(target=self.process_gps)
-            self.t1.start()
+            self.gps_thread = threading.Thread(target=self.process_gps)
+            self.gps_thread.start()
 
         # flight data
         cv2.namedWindow('Flight Data')
         cv2.moveWindow('Flight Data', 0, 405)
-        self.t2 = threading.Thread(target=self.process_flight_data)
-        self.t2.start()
+        self.data_thread = threading.Thread(target=self.process_flight_data)
+        self.data_thread.start()
 
         # object tracking
         cv2.namedWindow('Video')
@@ -243,8 +244,8 @@ class GCS:
         camera.release()
         self.drone.halt()
         cv2.destroyAllWindows()
-        self.t1._Thread__stop()
-        self.t2._Thread__stop()
+        if (self.use_gps): self.gps_thread._Thread__stop()
+        self.data_thread._Thread__stop()
         print 'Finished'
         sys.exit()
 
@@ -272,7 +273,7 @@ class GCS:
                 self.gps_data = gps_string.split()
                 # if we are moving
                 if (float(self.gps_data[4]) > 1.0):
-                    locations.append((self.gps_data(list[0]), self.gps_data(list[1])))
+                    locations.append((self.gps_data[0], self.gps_data[1]))
 
                 # draw all visited locations
                 for loc in locations:
@@ -293,24 +294,27 @@ class GCS:
                 flight_data = cv2.imread(self.flight_data_bg, 1)
                 bat = self.drone.navdata.get(0).get('battery')
                 alt1 = self.drone.navdata.get(0).get('altitude')
-                lat = self.gps_data[0]
-                lon = self.gps_data[1]
-                alt2 = self.gps_data[2]
-                course = self.gps_data[3]
-                speed = self.gps_data[4]
-                sats = self.gps_data[5]
                 pitch = self.drone.navdata.get(0).get('theta')
                 roll = self.drone.navdata.get(0).get('phi')
                 yaw = self.drone.navdata.get(0).get('psi')
 
                 cv2.putText(flight_data, 'Bat : ' + str(bat) + '%', (10, 20), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 255, 0), 2, 2, False)
                 cv2.putText(flight_data, 'Alt : ' + str(alt1) + 'm', (10, 50), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 255, 0), 2, 2, False)
-                cv2.putText(flight_data, 'Alt GPS : ' + str(alt2) + 'm', (10, 80), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 255, 0), 2, 2, False)
-                cv2.putText(flight_data, 'Speed : ' + str(speed) + 'km/h', (10, 110), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 255, 0), 2, 2, False)
-                cv2.putText(flight_data, 'Sats : ' + str(sats), (10, 140), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 255, 0), 2, 2, False)
-                cv2.putText(flight_data, 'Lat : ' + str(lat), (10, 170), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 255, 0), 2, 2, False)
-                cv2.putText(flight_data, 'Lon : ' + str(lon), (10, 200), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 255, 0), 2, 2, False)
-                cv2.putText(flight_data, 'Course : ' + str(course) + 'deg', (10, 230), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 255, 0), 2, 2, False)
+
+                if (self.use_gps):
+                    lat = self.gps_data[0]
+                    lon = self.gps_data[1]
+                    alt2 = self.gps_data[2]
+                    course = self.gps_data[3]
+                    speed = self.gps_data[4]
+                    sats = self.gps_data[5]
+
+                    cv2.putText(flight_data, 'Alt GPS : ' + str(alt2) + 'm', (10, 80), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 255, 0), 2, 2, False)
+                    cv2.putText(flight_data, 'Speed : ' + str(speed) + 'km/h', (10, 110), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 255, 0), 2, 2, False)
+                    cv2.putText(flight_data, 'Sats : ' + str(sats), (10, 140), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 255, 0), 2, 2, False)
+                    cv2.putText(flight_data, 'Lat : ' + str(lat), (10, 170), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 255, 0), 2, 2, False)
+                    cv2.putText(flight_data, 'Lon : ' + str(lon), (10, 200), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 255, 0), 2, 2, False)
+                    cv2.putText(flight_data, 'Course : ' + str(course) + 'deg', (10, 230), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 255, 0), 2, 2, False)
 
                 cv2.imshow('Flight Data', flight_data)
             except:
