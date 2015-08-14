@@ -37,11 +37,12 @@ class PID:
 
 # Ground Control Station
 class GCS:
-    def __init__(self, map_center=(51.195323, 4.464865), map_zoom=20, map_scale=1,
+    def __init__(self, fps=30, map_center=(51.195323, 4.464865), map_zoom=20, map_scale=1,
                 map_height=640, map_name='staticmap.png', use_gps=True):
 
         self.drone = libardrone.ARDrone()
         self.pid = PID()
+        self.fps = fps
         self.map_center = map_center
         self.map_zoom = map_zoom
         self.map_scale = map_scale
@@ -235,8 +236,8 @@ class GCS:
 
                 _, frame = camera.read()
                 self.find_qr(frame)
-                # limit to 35 fps
-                clock.tick(35)
+                # limit fps
+                clock.tick(self.fps)
             except:
                 pass
 
@@ -288,6 +289,7 @@ class GCS:
                 pass
 
     def process_flight_data(self):
+        lat, lon, alt2, course, speed, sats = None, None, None, None, None, None
         while True:
             try:
                 # reread background to clear everything
@@ -300,6 +302,10 @@ class GCS:
 
                 cv2.putText(flight_data, 'Bat : ' + str(bat) + '%', (10, 20), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 255, 0), 2, 2, False)
                 cv2.putText(flight_data, 'Alt : ' + str(alt1) + 'm', (10, 50), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 255, 0), 2, 2, False)
+                cv2.line(flight_data, (400, -roll + 50), (550, roll + 50), (0, 255, 0))
+                cv2.line(flight_data, (450, pitch + 50), (500, pitch + 50), (0, 255, 0))
+
+                cv2.imshow('Flight Data', flight_data)
 
                 if (self.use_gps):
                     lat = self.gps_data[0]
