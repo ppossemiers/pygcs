@@ -315,12 +315,12 @@ class GCS:
                 flight_data = cv2.imread(self.flight_data_bg, 1)
                 bat = self.drone.navdata.get(0).get('battery')
                 alt1 = self.drone.navdata.get(0).get('altitude')
-                pitch = self.drone.navdata.get(0).get('theta')
-                roll = self.drone.navdata.get(0).get('phi')
+                pitch = self.drone.navdata.get(0).get('theta') * 2
+                roll = self.drone.navdata.get(0).get('phi') * 5
                 yaw = self.drone.navdata.get(0).get('psi')
 
-                cntr1 = np.array([(0, 0), (0, 160 + roll + pitch), (640, 160 - roll), (640, 0)])
-                cntr2 = np.array([(0, 160 + roll + pitch), (0, 320), (640, 320), (640, 160 - roll)])
+                cntr1 = np.array([(0, 0), (0, 160 + roll + pitch), (640, 160 - roll + pitch), (640, 0)])
+                cntr2 = np.array([(0, 160 + roll + pitch), (0, 320), (640, 320), (640, 160 - roll + pitch)])
                 cv2.fillPoly(flight_data, pts =[cntr1], color=sky_color)
                 cv2.fillPoly(flight_data, pts =[cntr2], color=ground_color)
                 cv2.line(flight_data, (300, 160), (340, 160), txt_color)

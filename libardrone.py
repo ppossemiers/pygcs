@@ -56,6 +56,8 @@ class ARDrone(object):
         self.at(at_config, "general:navdata_demo", "TRUE")
         self.at(at_config, "control:outdoor", "TRUE")
         self.at(at_config, "control:flight_without_shell", "TRUE")
+        self.at(at_config, "video:bitrate", "500")
+        self.at(at_config, "video:codec_fps", "20")
         self.nav_pipe, nav_pipe_other = multiprocessing.Pipe()
         self.com_pipe, com_pipe_other = multiprocessing.Pipe()
         self.network_process = arnetwork.ARDroneNetworkProcess(nav_pipe_other, com_pipe_other)
