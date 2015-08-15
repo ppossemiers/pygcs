@@ -255,41 +255,59 @@ class GCS:
         sock.connect(('192.168.1.1', 4567))
         locations = []
         locations.append(self.map_center)
-
+        prev_coords = None
+        wp_color = (0, 255, 0)
+        loc_color = (0, 0, 255)
         while True:
             try:
-                prev_wp = None
-                prev_coords = None
                 # reread map to clear everything
                 map = cv2.imread(self.map_name, 1)
 
                 # draw all predefined waypoints
+                prev_wp = None
                 for wp in self.waypoints:
-                    cv2.circle(map, wp, 2, (0, 255, 0), 2)
-                    if (prev_wp): cv2.line(map, wp, prev_wp, (0, 255, 0), 1)
+                    cv2.circle(map, wp, 2, wp_color, 2)
+                    if (prev_wp): cv2.line(map, wp, prev_wp, wp_color, 1)
                     prev_wp = wp
 
                 gps_string = sock.recv(1024).rstrip('\n')
-                # lat, lon, alt, course, speed, satellites
-                self.gps_data = gps_string.split()
-                # if we are moving
-                if (float(self.gps_data[4]) > 1.0):
-                    locations.append((self.gps_data[0], self.gps_data[1]))
+                if gps_string.find('*') == -1:
+                    # lat, lon, alt, course, speed, satellites
+                    self.gps_data = gps_string.split()
+                    # update frequency of gps is 1Hz, but we force the process
+                    # to 5Hz so that the drone updates (pitch, roll) are faster
+                    current_coords = (self.gps_data[0], self.gps_data[1])
+                    print current_coords
 
-                # draw all visited locations
-                for loc in locations:
-                    coords = self.get_x_y(loc[0], loc[1])
-                    cv2.circle(map, coords, 1, (255, 255, 255), 1)
-                    if (prev_coords): cv2.line(map, coords, prev_coords, (0, 0, 255), 1)
-                    prev_coords = coords
-                    # TODO : draw larger circle around last location
+                    # if we are moving and it's a new position
+                    if (float(self.gps_data[4]) > 1.0 and current_coords != prev_coords):
+                        locations.append(current_coords)
+
+                    prev_coords = current_coords
+                    l = len(locations)
+
+                    # draw all visited locations
+                    prev_loc = None
+                    for i, loc in enumerate(locations):
+                        coords = self.get_x_y(loc[0], loc[1])
+                        if (i < l - 1):
+                            cv2.circle(map, coords, 5, (0, 255, 255), 2)
+                        elif (i == l - 1):
+                            cv2.circle(map, coords, 1, loc_color, 1)
+                        if (prev_loc): cv2.line(map, coords, prev_loc, loc_color, 1)
+                        prev_loc = coords
 
                 cv2.imshow('Map', map)
             except:
                 pass
 
     def process_flight_data(self):
-        lat, lon, alt2, course, speed, sats = None, None, None, None, None, None
+        txt_color = (255, 255, 255)
+        sky_color = (200, 120, 79)
+        ground_color = (42, 112, 76)
+        font = cv2.FONT_HERSHEY_SIMPLEX
+        space = 20
+        start = 10
         while True:
             try:
                 # reread background to clear everything
@@ -300,27 +318,31 @@ class GCS:
                 roll = self.drone.navdata.get(0).get('phi')
                 yaw = self.drone.navdata.get(0).get('psi')
 
-                cv2.putText(flight_data, 'Bat : ' + str(bat) + '%', (10, 20), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 255, 0), 2, 2, False)
-                cv2.putText(flight_data, 'Alt : ' + str(alt1) + 'm', (10, 50), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 255, 0), 2, 2, False)
-                cv2.line(flight_data, (400, -roll + 50), (550, roll + 50), (0, 255, 0))
-                cv2.line(flight_data, (450, pitch + 50), (500, pitch + 50), (0, 255, 0))
-
-                cv2.imshow('Flight Data', flight_data)
+                cntr1 = np.array([(0, 0), (0, 160 + roll + pitch), (640, 160 - roll), (640, 0)])
+                cntr2 = np.array([(0, 160 + roll + pitch), (0, 320), (640, 320), (640, 160 - roll)])
+                cv2.fillPoly(flight_data, pts =[cntr1], color=sky_color)
+                cv2.fillPoly(flight_data, pts =[cntr2], color=ground_color)
+                cv2.line(flight_data, (300, 160), (340, 160), txt_color)
+                cv2.putText(flight_data, 'Bat : ' + str(bat) + '%', (10, start + space), font, 0.6, txt_color, 1, 1, False)
+                cv2.putText(flight_data, 'Alt : ' + str(alt1) + 'm', (10, start + (space * 2)), font, 0.6, txt_color, 1, 1, False)
 
                 if (self.use_gps):
-                    lat = self.gps_data[0]
-                    lon = self.gps_data[1]
-                    alt2 = self.gps_data[2]
-                    course = self.gps_data[3]
-                    speed = self.gps_data[4]
-                    sats = self.gps_data[5]
+                    if (len(self.gps_data) > 0):
+                        lat = self.gps_data[0]
+                        lon = self.gps_data[1]
+                        alt2 = self.gps_data[2]
+                        course = self.gps_data[3]
+                        speed = self.gps_data[4]
+                        sats = self.gps_data[5]
 
-                    cv2.putText(flight_data, 'Alt GPS : ' + str(alt2) + 'm', (10, 80), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 255, 0), 2, 2, False)
-                    cv2.putText(flight_data, 'Speed : ' + str(speed) + 'km/h', (10, 110), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 255, 0), 2, 2, False)
-                    cv2.putText(flight_data, 'Sats : ' + str(sats), (10, 140), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 255, 0), 2, 2, False)
-                    cv2.putText(flight_data, 'Lat : ' + str(lat), (10, 170), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 255, 0), 2, 2, False)
-                    cv2.putText(flight_data, 'Lon : ' + str(lon), (10, 200), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 255, 0), 2, 2, False)
-                    cv2.putText(flight_data, 'Course : ' + str(course) + 'deg', (10, 230), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 255, 0), 2, 2, False)
+                        cv2.putText(flight_data, 'Alt GPS : ' + str(alt2) + 'm', (10, start + (space * 3)), font, 0.6, txt_color, 1, 1, False)
+                        cv2.putText(flight_data, 'Speed : ' + str(speed) + 'km/h', (10, start + (space * 4)), font, 0.6, txt_color, 1, 1, False)
+                        cv2.putText(flight_data, 'Sats : ' + str(sats), (10, start + (space * 5)), font, 0.6, txt_color, 1, 1, False)
+                        cv2.putText(flight_data, 'Lat : ' + str(lat), (10, start + (space * 6)), font, 0.6, txt_color, 1, 1, False)
+                        cv2.putText(flight_data, 'Lon : ' + str(lon), (10, start + (space * 7)), font, 0.6, txt_color, 1, 1, False)
+                        cv2.putText(flight_data, 'Course : ' + str(course) + 'deg', (10, start + (space * 8)), font, 0.6, txt_color, 1, 1, False)
+                    else:
+                        cv2.putText(flight_data, 'Sats : 0', (10, start + (space * 9)), font, 0.6, txt_color, 1, 1, False)
 
                 cv2.imshow('Flight Data', flight_data)
             except:

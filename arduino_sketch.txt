@@ -19,7 +19,10 @@ void setup() {
   swSerial.begin(GPSBaud);
 
   Serial.begin(115200);
-  interval = 1000;
+  // gps update frequency is only 1Hz,
+  // but this way we force the gcs to
+  // use a frequency of 5Hz for the flight data
+  interval = 200;
 }
 
 void loop() {
