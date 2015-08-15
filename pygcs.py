@@ -236,6 +236,7 @@ class GCS:
 
                 _, frame = camera.read()
                 self.find_qr(frame)
+
                 # limit fps
                 clock.tick(self.fps)
             except:
