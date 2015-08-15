@@ -33,7 +33,7 @@ import libardrone
 class ARDroneNetworkProcess(multiprocessing.Process):
     """ARDrone Network Process.
 
-    This process collects data from the video and navdata port, converts the
+    This process collects data from the navdata port, converts the
     data and sends it to the IPCThread.
     """
 

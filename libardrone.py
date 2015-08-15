@@ -18,13 +18,11 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 # THE SOFTWARE.
 
-
 """
 Python library for the AR.Drone.
 
 This module was tested with Python 2.6.6 and AR.Drone vanilla firmware 1.5.1.
 """
-
 
 import socket
 import struct
@@ -53,11 +51,6 @@ class ARDrone(object):
         self.com_watchdog_timer = threading.Timer(self.timer_t, self.commwdg)
         self.lock = threading.Lock()
         self.speed = 1.0
-        self.at(at_config, "general:navdata_demo", "TRUE")
-        self.at(at_config, "control:outdoor", "TRUE")
-        self.at(at_config, "control:flight_without_shell", "TRUE")
-        self.at(at_config, "video:bitrate", "500")
-        self.at(at_config, "video:codec_fps", "20")
         self.nav_pipe, nav_pipe_other = multiprocessing.Pipe()
         self.com_pipe, com_pipe_other = multiprocessing.Pipe()
         self.network_process = arnetwork.ARDroneNetworkProcess(nav_pipe_other, com_pipe_other)
@@ -70,8 +63,6 @@ class ARDrone(object):
 
     def takeoff(self):
         """Make the drone takeoff."""
-        self.at(at_ftrim)
-        self.at(at_config, "control:altitude_max", "20000")
         self.at(at_ref, True)
 
     def land(self):
@@ -130,6 +121,9 @@ class ARDrone(object):
         """
         self.speed = speed
 
+    def config(self, key, value):
+        self.at(at_config, key, value)
+
     def at(self, cmd, *args, **kwargs):
         """Wrapper for the low level at commands.
 
@@ -139,9 +133,8 @@ class ARDrone(object):
         """
         self.lock.acquire()
         self.com_watchdog_timer.cancel()
-        self.seq_nr = 1
         cmd(self.seq_nr, *args, **kwargs)
-        #self.seq_nr += 1
+        self.seq_nr += 1
         self.com_watchdog_timer = threading.Timer(self.timer_t, self.commwdg)
         self.com_watchdog_timer.start()
         self.lock.release()
