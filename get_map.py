@@ -10,6 +10,8 @@ LONG = 4.465070
 CENTER = (LAT, LONG)
 BASE_URL = 'http://maps.googleapis.com/maps/api/staticmap'
 FILE_NAME = 'staticmap.png'
+# roadmap, satellite, hybrid, terrain
+MAP_TYPE = 'roadmap'
 
 def plot_lat_lon(lat, lon):
     offset_lat_degrees = lat - CENTER[0]
@@ -22,7 +24,7 @@ def plot_lat_lon(lat, lon):
 
 def get_map():
     url = (BASE_URL + '?center=' + str(LAT) + ',' + str(LONG) + '&zoom=' + str(ZOOM) + '&size=' + str(MAP_HEIGHT) + 'x' + str(MAP_HEIGHT)
-                + '&scale=' + str(SCALE) + '&maptype=satellite')
+                + '&scale=' + str(SCALE) + '&maptype=' + MAP_TYPE)
     response = urllib2.urlopen(url)
     png_bytes = np.asarray([ord(char) for char in response.read()], dtype=np.uint8)
     cv_array = cv2.imdecode(png_bytes, cv2.CV_LOAD_IMAGE_UNCHANGED)

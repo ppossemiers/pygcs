@@ -46,9 +46,6 @@ class GCS:
         self.drone.config("control:outdoor", "TRUE")
         self.drone.config("control:flight_without_shell", "TRUE")
         self.drone.config("control:altitude_max", "25000")
-        #self.drone.config("video:bitrate", "500")
-        #self.drone.config("video:codec_fps", "15")
-        #self.drone.config("video:video_codec","132")
 
         self.pid = PID()
         self.fps = fps
@@ -182,7 +179,7 @@ class GCS:
                                 elif AB > BC and AB > CA:
                                     center_qr = ((corner_a[0] + corner_b[0]) / 2, (corner_a[1] + corner_b[1]) / 2)
 
-                                #cv2.polylines(frame, [pts], True, (0, 255, 0), 4)
+                                cv2.polylines(frame, [pts], True, (0, 255, 0), 4)
                                 if center_qr != None:
                                     # apply PID control
                                     errx =  self.distance(center_qr, 0, 640)
@@ -234,16 +231,26 @@ class GCS:
                             self.drone.trim()
                         # up / down
                         elif event.key == pygame.K_UP:
-                            self.drone.move_up()
+                            self.drone.move_forward()
+                            #self.drone.move_up()
                         elif event.key == pygame.K_DOWN:
-                            self.drone.move_down()
+                            self.drone.move_backward()
+                            #self.drone.move_down()
                         # turn left / turn right
                         elif event.key == pygame.K_LEFT:
-                            self.drone.turn_left()
+                            self.drone.move_left()
+                            #self.drone.turn_left()
                         elif event.key == pygame.K_RIGHT:
-                            self.drone.turn_right()
+                            self.drone.move_right()
+                            #self.drone.turn_right()
+                        # front camera
+                        elif event.key == pygame.K_f:
+                            self.drone.config("video:video_channel","2")
+                        # bottom camera
+                        elif event.key == pygame.K_b:
+                            self.drone.config("video:video_channel","1")
 
-                # grab two frames to empty buffer
+                # grab extra frames to empty buffer and avoid lag
                 camera.grab()
                 camera.grab()
                 _, frame = camera.read()
@@ -283,31 +290,29 @@ class GCS:
                     prev_wp = wp
 
                 gps_string = sock.recv(1024).rstrip('\n')
-                if gps_string.find('*') == -1:
-                    # lat, lon, alt, course, speed, satellites
-                    self.gps_data = gps_string.split()
-                    # update frequency of gps is 1Hz, but we force the process
-                    # to 5Hz so that the drone updates (pitch, roll) are faster
-                    current_coords = (self.gps_data[0], self.gps_data[1])
-                    print current_coords
+                # lat, lon, alt, course, speed, satellites
+                self.gps_data = gps_string.split()
+                # update frequency of gps is 1Hz, but we force the process
+                # to 5Hz so that the drone updates (pitch, roll) are faster
+                current_coords = (self.gps_data[0], self.gps_data[1])
 
-                    # if we are moving and it's a new position
-                    if (float(self.gps_data[4]) > 1.0 and current_coords != prev_coords):
-                        locations.append(current_coords)
+                # if we are moving and it's a new position
+                if (float(self.gps_data[4]) > 1.0 and current_coords != prev_coords):
+                    locations.append(current_coords)
 
-                    prev_coords = current_coords
-                    l = len(locations)
+                prev_coords = current_coords
+                l = len(locations)
 
-                    # draw all visited locations
-                    prev_loc = None
-                    for i, loc in enumerate(locations):
-                        coords = self.get_x_y(loc[0], loc[1])
-                        if (i < l - 1):
-                            cv2.circle(map, coords, 5, (0, 255, 255), 2)
-                        elif (i == l - 1):
-                            cv2.circle(map, coords, 1, loc_color, 1)
-                        if (prev_loc): cv2.line(map, coords, prev_loc, loc_color, 1)
-                        prev_loc = coords
+                # draw all visited locations
+                prev_loc = None
+                for i, loc in enumerate(locations):
+                    coords = self.get_x_y(loc[0], loc[1])
+                    if (i < l - 1):
+                        cv2.circle(map, coords, 5, (0, 255, 255), 2)
+                    elif (i == l - 1):
+                        cv2.circle(map, coords, 1, loc_color, 1)
+                    if (prev_loc): cv2.line(map, coords, prev_loc, loc_color, 1)
+                    prev_loc = coords
 
                 cv2.imshow('Map', map)
             except:
@@ -340,22 +345,19 @@ class GCS:
                 cv2.putText(flight_data, 'Alt : ' + str(alt1) + 'm', (10, start + (space * 2)), font, txt_size, txt_color, 1, 1, False)
 
                 if (self.use_gps):
-                    if (len(self.gps_data) > 0):
-                        lat = self.gps_data[0]
-                        lon = self.gps_data[1]
-                        alt2 = self.gps_data[2]
-                        course = self.gps_data[3]
-                        speed = self.gps_data[4]
-                        sats = self.gps_data[5]
+                    lat = self.gps_data[0]
+                    lon = self.gps_data[1]
+                    alt2 = self.gps_data[2]
+                    course = self.gps_data[3]
+                    speed = self.gps_data[4]
+                    sats = self.gps_data[5]
 
-                        cv2.putText(flight_data, 'Alt GPS : ' + str(alt2) + 'm', (10, start + (space * 3)), font, txt_size, txt_color, 1, 1, False)
-                        cv2.putText(flight_data, 'Speed : ' + str(speed) + 'km/h', (10, start + (space * 4)), font, txt_size, txt_color, 1, 1, False)
-                        cv2.putText(flight_data, 'Sats : ' + str(sats), (10, start + (space * 5)), font, txt_size, txt_color, 1, 1, False)
-                        cv2.putText(flight_data, 'Lat : ' + str(lat), (10, start + (space * 6)), font, txt_size, txt_color, 1, 1, False)
-                        cv2.putText(flight_data, 'Lon : ' + str(lon), (10, start + (space * 7)), font, txt_size, txt_color, 1, 1, False)
-                        cv2.putText(flight_data, 'Course : ' + str(course) + 'deg', (10, start + (space * 8)), font, txt_size, txt_color, 1, 1, False)
-                    else:
-                        cv2.putText(flight_data, 'Sats : 0', (10, start + (space * 9)), font, txt_size, txt_color, 1, 1, False)
+                    cv2.putText(flight_data, 'Alt GPS : ' + str(alt2) + 'm', (10, start + (space * 3)), font, txt_size, txt_color, 1, 1, False)
+                    cv2.putText(flight_data, 'Speed : ' + str(speed) + 'km/h', (10, start + (space * 4)), font, txt_size, txt_color, 1, 1, False)
+                    cv2.putText(flight_data, 'Sats : ' + str(sats), (10, start + (space * 5)), font, txt_size, txt_color, 1, 1, False)
+                    cv2.putText(flight_data, 'Lat : ' + str(lat), (10, start + (space * 6)), font, txt_size, txt_color, 1, 1, False)
+                    cv2.putText(flight_data, 'Lon : ' + str(lon), (10, start + (space * 7)), font, txt_size, txt_color, 1, 1, False)
+                    cv2.putText(flight_data, 'Course : ' + str(course) + 'deg', (10, start + (space * 8)), font, txt_size, txt_color, 1, 1, False)
 
                 cv2.imshow('Flight Data', flight_data)
             except:

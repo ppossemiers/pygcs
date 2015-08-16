@@ -44,7 +44,6 @@ class ARDrone(object):
 
     Instantiate this class to control your drone and receive navdata.
     """
-
     def __init__(self):
         self.seq_nr = 1
         self.timer_t = 0.2
@@ -116,7 +115,6 @@ class ARDrone(object):
 
     def set_speed(self, speed):
         """Set the drone's speed.
-
         Valid values are floats from [0..1]
         """
         self.speed = speed
@@ -226,17 +224,6 @@ def at_ftrim(seq):
     """
     at("FTRIM", seq, [])
 
-def at_zap(seq, stream):
-    """
-    Selects which video stream to send on the video UDP port.
-
-    Parameters:
-    seq -- sequence number
-    stream -- Integer: video stream to broadcast
-    """
-    # FIXME: improve parameters to select the modes directly
-    at("ZAP", seq, [stream])
-
 def at_config(seq, option, value):
     """Set configuration parameters of the drone."""
     at("CONFIG", seq, [str(option), str(value)])
@@ -245,18 +232,7 @@ def at_comwdg(seq):
     """
     Reset communication watchdog.
     """
-    # FIXME: no sequence number
     at("COMWDG", seq, [])
-
-def at_aflight(seq, flag):
-    """
-    Makes the drone fly autonomously.
-
-    Parameters:
-    seq -- sequence number
-    flag -- Integer: 1: start flight, 0: stop flight
-    """
-    at("AFLIGHT", seq, [flag])
 
 def at_pwm(seq, m1, m2, m3, m4):
     """
@@ -383,6 +359,6 @@ def decode_navdata(packet):
             # are not so precise anyways
             for i in 'theta', 'phi', 'psi':
                 values[i] = int(values[i] / 1000)
-                #values[i] /= 1000
+
         data[id_nr] = values
     return data
