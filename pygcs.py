@@ -37,7 +37,7 @@ class PID:
 
 # Ground Control Station
 class GCS:
-    def __init__(self, fps=25, map_center=(51.195323, 4.464865), map_zoom=20, map_scale=1,
+    def __init__(self, fps=30, map_center=(51.195323, 4.464865), map_zoom=20, map_scale=1,
                 map_height=640, map_name='staticmap.png', use_gps=True):
 
         self.drone = libardrone.ARDrone()
@@ -164,7 +164,7 @@ class GCS:
                             # we have 3 corner points
                             if corner_a != None and corner_b != None and corner_c != None:
                                 pts = np.array([corner_a, corner_b, corner_c], np.int32)
-                                center_qr = None
+                                center_qr = None #TODO : check if necessary
 
                                 # get length of sides of the triangle
                                 AB = np.sqrt((corner_a[0] - corner_b[0]) * (corner_a[0] - corner_b[0]) + (corner_a[1] - corner_b[1]) * (corner_a[1] - corner_b[1]))
@@ -192,6 +192,28 @@ class GCS:
             cv2.imshow('Video', frame)
         except:
             pass
+
+    # find simple red object in frame
+    def find_red_object(self, frame):
+        try:
+            lower_red = np.array([17, 15, 100], dtype = "uint8")
+            upper_red = np.array([50, 56, 200], dtype = "uint8")
+            mask = cv2.inRange(frame, lower_red, upper_red)
+            filtered = cv2.bitwise_and(frame, frame, mask = mask)
+
+            gray = cv2.cvtColor(filtered, cv2.COLOR_BGR2GRAY)
+            blurred = cv2.GaussianBlur(gray, (7, 7), 0)
+            edged = cv2.Canny(blurred, 50, 150)
+            contours, hierarchy = cv2.findContours(edged.copy(), cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
+            cnt = contours[0]
+            M = cv2.moments(cnt)
+
+            cntr = (int(M['m10'] / M['m00']), int(M['m01'] / M['m00']))
+            cv2.circle(frame, cntr, 6, (255, 255, 255), 4)
+
+            cv2.imshow('Video', frame)
+        except:
+            cv2.imshow('Video', frame)
 
     def process_video(self):
         pygame.init()
@@ -251,7 +273,8 @@ class GCS:
                 camera.grab()
                 camera.grab()
                 _, frame = camera.read()
-                self.find_qr(frame)
+                #self.find_qr(frame)
+                self.find_red_object(frame)
                 # limit fps
                 clock.tick(self.fps)
             except:
