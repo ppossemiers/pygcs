@@ -41,11 +41,11 @@ class GCS:
                 map_height=640, map_name='staticmap.png', use_gps=True):
 
         self.drone = libardrone.ARDrone()
-        self.drone.config("general:navdata_demo", "TRUE")
-        self.drone.config("general:ardrone_name", "DronePhil")
-        self.drone.config("control:outdoor", "TRUE")
-        self.drone.config("control:flight_without_shell", "TRUE")
-        self.drone.config("control:altitude_max", "25000")
+        self.drone.config('general:navdata_demo', 'TRUE')
+        self.drone.config('general:ardrone_name', 'DronePhil')
+        self.drone.config('control:outdoor', 'TRUE')
+        self.drone.config('control:flight_without_shell', 'TRUE')
+        self.drone.config('control:altitude_max', '25000')
 
         self.pid = PID()
         self.fps = fps
@@ -207,48 +207,45 @@ class GCS:
                         self.drone.hover()
                     elif event.type == pygame.KEYDOWN:
                         if event.key == pygame.K_ESCAPE:
+                            self.drone.land()
                             running = False
                         # takeoff / land
                         elif event.key == pygame.K_RETURN:
                             self.drone.takeoff()
                         elif event.key == pygame.K_SPACE:
                             self.drone.land()
-                        # emergency
-                        elif event.key == pygame.K_BACKSPACE:
+                        # reset
+                        elif event.key == pygame.K_r:
                             self.drone.reset()
                         # forward / backward
                         elif event.key == pygame.K_w:
-                            self.drone.move_forward()
+                            self.drone.move_up()
                         elif event.key == pygame.K_s:
-                            self.drone.move_backward()
+                            self.drone.move_down()
                         # left / right
                         elif event.key == pygame.K_a:
-                            self.drone.move_left()
+                            self.drone.turn_left()
                         elif event.key == pygame.K_d:
-                            self.drone.move_right()
+                            self.drone.turn_right()
                         # trim
                         elif event.key == pygame.K_t:
                             self.drone.trim()
                         # up / down
                         elif event.key == pygame.K_UP:
                             self.drone.move_forward()
-                            #self.drone.move_up()
                         elif event.key == pygame.K_DOWN:
                             self.drone.move_backward()
-                            #self.drone.move_down()
                         # turn left / turn right
                         elif event.key == pygame.K_LEFT:
                             self.drone.move_left()
-                            #self.drone.turn_left()
                         elif event.key == pygame.K_RIGHT:
                             self.drone.move_right()
-                            #self.drone.turn_right()
                         # front camera
                         elif event.key == pygame.K_f:
-                            self.drone.config("video:video_channel","2")
+                            self.drone.config('video:video_channel','2')
                         # bottom camera
                         elif event.key == pygame.K_b:
-                            self.drone.config("video:video_channel","1")
+                            self.drone.config('video:video_channel','1')
 
                 # grab extra frames to empty buffer and avoid lag
                 camera.grab()
