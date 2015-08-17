@@ -19,21 +19,17 @@ class PID:
 
         self.errx_1 = 0
         self.erry_1 = 0
-        self.phi_1 = 0
-        self.gaz_1 = 0
 
     def compute_control_command(self, errx, erry):
         # left / right
-        phi = self.Kpx * errx + self.Kix * (errx + self.errx_1) + self.Kdx * (errx - self.errx_1)
+        x = self.Kpx * errx + self.Kix * (errx + self.errx_1) + self.Kdx * (errx - self.errx_1)
         # up / down
-        gaz = self.Kpy * erry + self.Kiy * (erry + self.erry_1) + self.Kdy * (erry - self.erry_1)
+        y = self.Kpy * erry + self.Kiy * (erry + self.erry_1) + self.Kdy * (erry - self.erry_1)
         # remember values
         self.errx_1 = errx
         self.erry_1 = erry
-        self.phi_1 = phi
-        self.gaz_1 = gaz
 
-        return (phi, gaz)
+        return (x, y)
 
 # Ground Control Station
 class GCS:
@@ -181,11 +177,6 @@ class GCS:
 
                                 cv2.polylines(frame, [pts], True, (0, 255, 0), 4)
                                 if center_qr != None:
-                                    # apply PID control
-                                    errx =  self.distance(center_qr, 0, 640)
-                                    erry = -self.distance(center_qr, 1, 360)
-                                    #print self.pid.compute_control_command(errx, erry)
-
                                     # draw a circle around the center
                                     cv2.circle(frame, center_qr, 6, (0, 0, 255), 4)
 
@@ -209,8 +200,12 @@ class GCS:
             M = cv2.moments(cnt)
 
             cntr = (int(M['m10'] / M['m00']), int(M['m01'] / M['m00']))
-            cv2.circle(frame, cntr, 6, (255, 255, 255), 4)
+            # apply PID control
+            errx =  self.distance(cntr, 0, 640)
+            erry = -self.distance(cntr, 1, 360)
+            print self.pid.compute_control_command(errx, erry)
 
+            cv2.circle(frame, cntr, 6, (255, 255, 255), 4)
             cv2.imshow('Video', frame)
         except:
             cv2.imshow('Video', frame)
