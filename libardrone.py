@@ -234,20 +234,6 @@ def at_comwdg(seq):
     """
     at("COMWDG", seq, [])
 
-def at_pwm(seq, m1, m2, m3, m4):
-    """
-    Sends control values directly to the engines, overriding control loops.
-
-    Parameters:
-    seq -- sequence number
-    m1 -- front left command
-    m2 -- fright right command
-    m3 -- back right command
-    m4 -- back left command
-    """
-    # FIXME: what type do mx have?
-    pass
-
 def at_led(seq, anim, f, d):
     """
     Control the drones LED.

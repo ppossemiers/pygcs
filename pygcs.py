@@ -29,7 +29,7 @@ class PID:
         self.errx_1 = errx
         self.erry_1 = erry
 
-        return (x, y)
+        return (-x, -y)
 
 # Ground Control Station
 class GCS:
@@ -196,19 +196,23 @@ class GCS:
             blurred = cv2.GaussianBlur(gray, (7, 7), 0)
             edged = cv2.Canny(blurred, 50, 150)
             contours, hierarchy = cv2.findContours(edged.copy(), cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
-            cnt = contours[0]
-            M = cv2.moments(cnt)
+            if (contours):
+                cnt = contours[0]
+                M = cv2.moments(cnt)
 
-            cntr = (int(M['m10'] / M['m00']), int(M['m01'] / M['m00']))
-            # apply PID control
-            errx =  self.distance(cntr, 0, 640)
-            erry = -self.distance(cntr, 1, 360)
-            print self.pid.compute_control_command(errx, erry)
+                cntr = (int(M['m10'] / M['m00']), int(M['m01'] / M['m00']))
+                # apply PID control
+                errx =  self.distance(cntr, 0, 640)
+                erry = -self.distance(cntr, 1, 360)
+                (x, y) = self.pid.compute_control_command(errx, erry)
 
-            cv2.circle(frame, cntr, 6, (255, 255, 255), 4)
+                self.drone.move(-x, y, 0, 0)
+                self.drone.move(0, 0, 0, 0)
+
+                cv2.circle(frame, cntr, 6, (255, 255, 255), 4)
             cv2.imshow('Video', frame)
         except:
-            cv2.imshow('Video', frame)
+            pass
 
     def process_video(self):
         pygame.init()
@@ -309,23 +313,23 @@ class GCS:
                 self.gps_data = gps_string.split()
                 # update frequency of gps is 1Hz, but we force the process
                 # to 5Hz so that the drone updates (pitch, roll) are faster
-                current_coords = (self.gps_data[0], self.gps_data[1])
+                current_coords = (float(self.gps_data[0]), float(self.gps_data[1]))
 
                 # if we are moving and it's a new position
                 if (float(self.gps_data[4]) > 1.0 and current_coords != prev_coords):
                     locations.append(current_coords)
 
                 prev_coords = current_coords
-                l = len(locations)
+                l = len(locations) - 1
 
                 # draw all visited locations
                 prev_loc = None
                 for i, loc in enumerate(locations):
                     coords = self.get_x_y(loc[0], loc[1])
-                    if (i < l - 1):
-                        cv2.circle(map, coords, 5, (0, 255, 255), 2)
-                    elif (i == l - 1):
+                    if (i < l):
                         cv2.circle(map, coords, 1, loc_color, 1)
+                    else:
+                        cv2.circle(map, coords, 5, (0, 255, 255), 1)
                     if (prev_loc): cv2.line(map, coords, prev_loc, loc_color, 1)
                     prev_loc = coords
 
@@ -357,7 +361,7 @@ class GCS:
                 cv2.fillPoly(flight_data, pts =[cntr2], color=ground_color)
                 cv2.line(flight_data, (300, 160), (340, 160), txt_color)
                 cv2.putText(flight_data, 'Bat : ' + str(bat) + '%', (10, start + space), font, txt_size, txt_color, 1, 1, False)
-                cv2.putText(flight_data, 'Alt : ' + str(alt1) + 'm', (10, start + (space * 2)), font, txt_size, txt_color, 1, 1, False)
+                cv2.putText(flight_data, 'Alt : ' + str(alt1) + 'cm', (10, start + (space * 2)), font, txt_size, txt_color, 1, 1, False)
 
                 if (self.use_gps):
                     lat = self.gps_data[0]
