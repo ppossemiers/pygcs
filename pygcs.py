@@ -55,6 +55,10 @@ class GCS:
         self.gps_data = []
         self.waypoints = []
 
+        self.red = ([17, 15, 100], [50, 56, 200])
+        self.blue = ([86, 31, 4], [220, 88, 50])
+        self.yellow = ([25, 146, 190], [62, 174, 250])
+
         # gps tracking
         if (self.use_gps):
             cv2.namedWindow('Map')
@@ -120,76 +124,55 @@ class GCS:
             corner_a, corner_b, corner_c = None, None, None
 
             for component in z:
-                currentContour = component[0]
-                currentHierarchy = component[1]
-                peri = cv2.arcLength(currentContour, True)
-                approx = cv2.approxPolyDP(currentContour, 0.01 * peri, True)
+                current_contour = component[0]
+                current_hierarchy = component[1]
+                peri = cv2.arcLength(current_contour, True)
+                approx = cv2.approxPolyDP(current_contour, 0.01 * peri, True)
 
                 # this could be a square
                 if len(approx) >= 4 and len(approx) <= 6:
                     (x, y, w, h) = cv2.boundingRect(approx)
-                    aspectRatio = w / float(h)
+                    aspect_ratio = w / float(h)
 
-                    area = cv2.contourArea(currentContour)
-                    hullArea = cv2.contourArea(cv2.convexHull(currentContour))
-                    solidity = area / float(hullArea)
+                    area = cv2.contourArea(current_contour)
+                    hull_area = cv2.contourArea(cv2.convexHull(current_contour))
+                    solidity = area / float(hull_area)
 
                     # it's a square!
                     if ((solidity > 0.9)
-                        and (aspectRatio >= 0.9 and aspectRatio <= 1.1)):
+                        and (aspect_ratio >= 0.9 and aspect_ratio <= 1.1)):
                         child_count = 0
 
                         # find all of it's children
-                        while currentHierarchy[2] > -1:
+                        while current_hierarchy[2] > -1:
                             child_count += 1
-                            currentHierarchy = z[currentHierarchy[2]][1]
+                            current_hierarchy = z[current_hierarchy[2]][1]
 
                         # it looks like a QR corner
                         if child_count > 4:
                             # get the center
-                            M = cv2.moments(approx)
-                            cntr = [int(M['m10'] / M['m00']), int(M['m01'] / M['m00'])]
-
-                            if corner_a == None and corner_b == None and corner_c == None:
-                                corner_a = cntr
-                            elif corner_a != None and corner_b == None and corner_c == None:
-                                corner_b = cntr
-                            elif corner_a != None and corner_b != None and corner_c == None:
-                                corner_c = cntr
-
-                            # we have 3 corner points
-                            if corner_a != None and corner_b != None and corner_c != None:
-                                pts = np.array([corner_a, corner_b, corner_c], np.int32)
-                                center_qr = None #TODO : check if necessary
-
-                                # get length of sides of the triangle
-                                AB = np.sqrt((corner_a[0] - corner_b[0]) * (corner_a[0] - corner_b[0]) + (corner_a[1] - corner_b[1]) * (corner_a[1] - corner_b[1]))
-                                BC = np.sqrt((corner_b[0] - corner_c[0]) * (corner_b[0] - corner_c[0]) + (corner_b[1] - corner_c[1]) * (corner_b[1] - corner_c[1]))
-                                CA = np.sqrt((corner_c[0] - corner_a[0]) * (corner_c[0] - corner_a[0]) + (corner_c[1] - corner_a[1]) * (corner_c[1] - corner_a[1]))
-
-                                # find hypotenuse center
-                                if BC > AB and BC > CA:
-                                    center_qr = ((corner_b[0] + corner_c[0]) / 2, (corner_b[1] + corner_c[1]) / 2)
-                                elif CA > AB and CA > BC:
-                                    center_qr = ((corner_c[0] + corner_a[0]) / 2, (corner_c[1] + corner_a[1]) / 2)
-                                elif AB > BC and AB > CA:
-                                    center_qr = ((corner_a[0] + corner_b[0]) / 2, (corner_a[1] + corner_b[1]) / 2)
-
-                                cv2.polylines(frame, [pts], True, (0, 255, 0), 4)
-                                if center_qr != None:
-                                    # draw a circle around the center
-                                    cv2.circle(frame, center_qr, 6, (0, 0, 255), 4)
+                            M = cv2.moments(current_contour)
+                            center_qr = (int(M['m10'] / M['m00']), int(M['m01'] / M['m00']))
+                            cv2.circle(frame, center_qr, 6, (0, 0, 255), 4)
 
             cv2.imshow('Video', frame)
         except:
             pass
 
-    # find simple red object in frame
-    def find_red_object(self, frame):
+    # find simple colored object in frame
+    def find_colored_object(self, frame, color):
         try:
-            lower_red = np.array([17, 15, 100], dtype = "uint8")
-            upper_red = np.array([50, 56, 200], dtype = "uint8")
-            mask = cv2.inRange(frame, lower_red, upper_red)
+            if (color == 'red'):
+                lower = np.array(self.red[0], dtype = "uint8")
+                upper = np.array(self.red[1], dtype = "uint8")
+            elif (color == 'blue'):
+                lower = np.array(self.blue[0], dtype = "uint8")
+                upper = np.array(self.blue[1], dtype = "uint8")
+            elif (color == 'yellow'):
+                lower = np.array(self.yellow[0], dtype = "uint8")
+                upper = np.array(self.yellow[1], dtype = "uint8")
+
+            mask = cv2.inRange(frame, lower, upper)
             filtered = cv2.bitwise_and(frame, frame, mask = mask)
 
             gray = cv2.cvtColor(filtered, cv2.COLOR_BGR2GRAY)
@@ -272,8 +255,8 @@ class GCS:
                 camera.grab()
                 camera.grab()
                 _, frame = camera.read()
-                #self.find_qr(frame)
-                self.find_red_object(frame)
+                self.find_qr(frame)
+                #self.find_colored_object(frame, 'blue')
                 # limit fps
                 clock.tick(self.fps)
             except:
@@ -335,7 +318,7 @@ class GCS:
 
                 cv2.imshow('Map', map)
             except:
-                pass
+                cv2.imshow('Map', map)
 
     def process_flight_data(self):
         txt_color = (255, 255, 255)
