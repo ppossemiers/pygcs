@@ -32,7 +32,7 @@ class PID:
 
 # Ground Control Station
 class GCS:
-    def __init__(self, fps=30, map_center=(51.195323, 4.464865), map_zoom=20, map_scale=1,
+    def __init__(self, fps=25, map_center=(51.195323, 4.464865), map_zoom=20, map_scale=1,
                         map_height=640, map_name='staticmap.png', use_gps=True):
 
         self.drone = libardrone.ARDrone()
@@ -198,15 +198,15 @@ class GCS:
                 # apply PID control
                 errx = self.distance(cntr, 0, 640)
                 erry = self.distance(cntr, 1, 360)
-                (x, y) = self.pid.compute_control_command(errx, erry)
-                print x, y
-                self.drone.move(x, y, 0, 0)
+                if (self.alt > 0):
+                    (x, y) = self.pid.compute_control_command(errx, erry)
+                    self.drone.move(x, y, 0, 0)
 
                 cv2.circle(frame, cntr, 6, (255, 255, 255), 4)
             else:
                 self.drone.hover()
 
-            cv2.imshow('Video', frame)
+            cv2.imshow('Video', edged)
         except:
             pass
 
@@ -325,7 +325,7 @@ class GCS:
                     if (i < l):
                         cv2.circle(map, coords, 1, loc_color, 1)
                     else:
-                        cv2.circle(map, coords, 5, (0, 255, 255), 1)
+                        cv2.circle(map, coords, 5, (0, 255, 255), 2)
                     if (prev_loc): cv2.line(map, coords, prev_loc, loc_color, 1)
                     prev_loc = coords
 
