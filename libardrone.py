@@ -107,7 +107,7 @@ class ARDrone(object):
     def reset(self):
         """Toggle the drone's emergency state."""
         self.at(at_ref, False, True)
-        self.at(at_ref, False, False)
+        self.at(at_ref, False, True)
 
     def trim(self):
         """Flat trim the drone."""

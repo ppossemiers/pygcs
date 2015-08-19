@@ -9,7 +9,7 @@ import threading
 
 # https://cranklin.wordpress.com/2014/11/14/artificial-intelligence-applied-to-your-drone
 class PID:
-    def __init__(self, Kpx=0.25, Kpy=0.25, Kdx=0.25, Kdy=0.25, Kix=0.0, Kiy=0.0):
+    def __init__(self, Kpx=0.05, Kpy=0.05, Kdx=0.05, Kdy=0.05, Kix=0.0, Kiy=0.0):
         self.Kpx = Kpx
         self.Kpy = Kpy
         self.Kdx = Kdx
@@ -22,19 +22,18 @@ class PID:
 
     def compute_control_command(self, errx, erry):
         # left / right
-        x = self.Kpx * errx + self.Kix * (errx + self.errx_1) + self.Kdx * (errx - self.errx_1)
+        x = (self.Kpx * errx + self.Kix * (errx + self.errx_1) + self.Kdx * (errx - self.errx_1)) * (self.alt / 100)
         # up / down
-        y = self.Kpy * erry + self.Kiy * (erry + self.erry_1) + self.Kdy * (erry - self.erry_1)
+        y = (self.Kpy * erry + self.Kiy * (erry + self.erry_1) + self.Kdy * (erry - self.erry_1)) * (self.alt / 100)
         # remember values
         self.errx_1 = errx
         self.erry_1 = erry
-
-        return (-x, -y)
+        return (x, y)
 
 # Ground Control Station
 class GCS:
     def __init__(self, fps=30, map_center=(51.195323, 4.464865), map_zoom=20, map_scale=1,
-                map_height=640, map_name='staticmap.png', use_gps=True):
+                        map_height=640, map_name='staticmap.png', use_gps=True):
 
         self.drone = libardrone.ARDrone()
         self.drone.config('general:navdata_demo', 'TRUE')
@@ -111,6 +110,17 @@ class GCS:
         offset_y_degrees = (float(grid_y) / self.map_scale) * degrees_in_map
         return self.map_center[0] + offset_y_degrees, self.map_center[1] + offset_x_degrees
 
+    # http://andrew.hedges.name/experiments/haversine/
+    def get_distance_meters(self, coord1, coord2):
+        R = 6371000 # radius of the earth in meters
+        c1 = (math.radians(coord1[0]), math.radians(coord1[1]))
+        c2 = (math.radians(coord2[0]), math.radians(coord2[1]))
+        dlat = c2[0] - c1[0]
+        dlon = c2[1] - c1[1]
+        a = math.pow(math.sin(dlat/2), 2) + math.cos(c1[0]) * math.cos(c1[1]) * math.pow(math.sin(dlon/2), 2)
+        c = 2 * math.atan2(math.sqrt(a), math.sqrt(1-a))
+        return R * c
+
     # find center of qr code in frame
     def find_qr(self, frame):
         try:
@@ -179,20 +189,23 @@ class GCS:
             blurred = cv2.GaussianBlur(gray, (7, 7), 0)
             edged = cv2.Canny(blurred, 50, 150)
             contours, hierarchy = cv2.findContours(edged.copy(), cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
+            # object found
             if (contours):
                 cnt = contours[0]
                 M = cv2.moments(cnt)
 
                 cntr = (int(M['m10'] / M['m00']), int(M['m01'] / M['m00']))
                 # apply PID control
-                errx =  self.distance(cntr, 0, 640)
-                erry = -self.distance(cntr, 1, 360)
+                errx = self.distance(cntr, 0, 640)
+                erry = self.distance(cntr, 1, 360)
                 (x, y) = self.pid.compute_control_command(errx, erry)
-
-                self.drone.move(-x, y, 0, 0)
-                self.drone.move(0, 0, 0, 0)
+                print x, y
+                self.drone.move(x, y, 0, 0)
 
                 cv2.circle(frame, cntr, 6, (255, 255, 255), 4)
+            else:
+                self.drone.hover()
+
             cv2.imshow('Video', frame)
         except:
             pass
@@ -207,8 +220,8 @@ class GCS:
                 for event in pygame.event.get():
                     if event.type == pygame.QUIT:
                         running = False
-                    elif event.type == pygame.KEYUP:
-                        self.drone.hover()
+                    #elif event.type == pygame.KEYUP:
+                    #    self.drone.hover()
                     elif event.type == pygame.KEYDOWN:
                         if event.key == pygame.K_ESCAPE:
                             self.drone.land()
@@ -255,8 +268,8 @@ class GCS:
                 camera.grab()
                 camera.grab()
                 _, frame = camera.read()
-                self.find_qr(frame)
-                #self.find_colored_object(frame, 'blue')
+                #self.find_qr(frame)
+                self.find_colored_object(frame, 'red')
                 # limit fps
                 clock.tick(self.fps)
             except:
@@ -318,7 +331,7 @@ class GCS:
 
                 cv2.imshow('Map', map)
             except:
-                cv2.imshow('Map', map)
+                pass
 
     def process_flight_data(self):
         txt_color = (255, 255, 255)
@@ -333,7 +346,7 @@ class GCS:
                 # reread background to clear everything
                 flight_data = cv2.imread(self.flight_data_bg, 1)
                 bat = self.drone.navdata.get(0).get('battery')
-                alt1 = self.drone.navdata.get(0).get('altitude')
+                self.alt = self.drone.navdata.get(0).get('altitude')
                 pitch = self.drone.navdata.get(0).get('theta') * 2
                 roll = self.drone.navdata.get(0).get('phi') * 4
                 yaw = self.drone.navdata.get(0).get('psi')
@@ -344,17 +357,17 @@ class GCS:
                 cv2.fillPoly(flight_data, pts =[cntr2], color=ground_color)
                 cv2.line(flight_data, (300, 160), (340, 160), txt_color)
                 cv2.putText(flight_data, 'Bat : ' + str(bat) + '%', (10, start + space), font, txt_size, txt_color, 1, 1, False)
-                cv2.putText(flight_data, 'Alt : ' + str(alt1) + 'cm', (10, start + (space * 2)), font, txt_size, txt_color, 1, 1, False)
+                cv2.putText(flight_data, 'Alt : ' + str(self.alt) + 'cm', (10, start + (space * 2)), font, txt_size, txt_color, 1, 1, False)
 
                 if (self.use_gps):
                     lat = self.gps_data[0]
                     lon = self.gps_data[1]
-                    alt2 = self.gps_data[2]
+                    gps_alt = self.gps_data[2]
                     course = self.gps_data[3]
                     speed = self.gps_data[4]
                     sats = self.gps_data[5]
 
-                    cv2.putText(flight_data, 'Alt GPS : ' + str(alt2) + 'm', (10, start + (space * 3)), font, txt_size, txt_color, 1, 1, False)
+                    cv2.putText(flight_data, 'Alt GPS : ' + str(gps_alt) + 'm', (10, start + (space * 3)), font, txt_size, txt_color, 1, 1, False)
                     cv2.putText(flight_data, 'Speed : ' + str(speed) + 'km/h', (10, start + (space * 4)), font, txt_size, txt_color, 1, 1, False)
                     cv2.putText(flight_data, 'Sats : ' + str(sats), (10, start + (space * 5)), font, txt_size, txt_color, 1, 1, False)
                     cv2.putText(flight_data, 'Lat : ' + str(lat), (10, start + (space * 6)), font, txt_size, txt_color, 1, 1, False)
