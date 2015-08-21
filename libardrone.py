@@ -143,7 +143,10 @@ class ARDrone(object):
         This needs to be sent regulary to keep the communication w/ the drone
         alive.
         """
-        self.at(at_comwdg)
+        try:
+            self.at(at_comwdg)
+        except:
+            sys.exit()
 
     def halt(self):
         """Shutdown the drone.

@@ -9,7 +9,7 @@ import threading
 
 # https://cranklin.wordpress.com/2014/11/14/artificial-intelligence-applied-to-your-drone
 class PID:
-    def __init__(self, Kpx=0.05, Kpy=0.05, Kdx=0.05, Kdy=0.05, Kix=0.0, Kiy=0.0):
+    def __init__(self, Kpx=0.03, Kpy=0.03, Kdx=0.2, Kdy=0.2, Kix=0, Kiy=0):
         self.Kpx = Kpx
         self.Kpy = Kpy
         self.Kdx = Kdx
@@ -22,9 +22,9 @@ class PID:
 
     def compute_control_command(self, errx, erry):
         # left / right
-        x = (self.Kpx * errx + self.Kix * (errx + self.errx_1) + self.Kdx * (errx - self.errx_1)) * (self.alt / 100)
+        x = (self.Kpx * errx + self.Kix * (errx + self.errx_1) + self.Kdx * (errx - self.errx_1))
         # up / down
-        y = (self.Kpy * erry + self.Kiy * (erry + self.erry_1) + self.Kdy * (erry - self.erry_1)) * (self.alt / 100)
+        y = (self.Kpy * erry + self.Kiy * (erry + self.erry_1) + self.Kdy * (erry - self.erry_1))
         # remember values
         self.errx_1 = errx
         self.erry_1 = erry
@@ -32,7 +32,7 @@ class PID:
 
 # Ground Control Station
 class GCS:
-    def __init__(self, fps=25, map_center=(51.195323, 4.464865), map_zoom=20, map_scale=1,
+    def __init__(self, map_center=(51.195323, 4.464865), map_zoom=20, map_scale=1,
                         map_height=640, map_name='staticmap.png', use_gps=True):
 
         self.drone = libardrone.ARDrone()
@@ -43,7 +43,6 @@ class GCS:
         self.drone.config('control:altitude_max', '25000')
 
         self.pid = PID()
-        self.fps = fps
         self.map_center = map_center
         self.map_zoom = map_zoom
         self.map_scale = map_scale
@@ -186,33 +185,33 @@ class GCS:
             filtered = cv2.bitwise_and(frame, frame, mask = mask)
 
             gray = cv2.cvtColor(filtered, cv2.COLOR_BGR2GRAY)
-            blurred = cv2.GaussianBlur(gray, (7, 7), 0)
-            edged = cv2.Canny(blurred, 50, 150)
-            contours, hierarchy = cv2.findContours(edged.copy(), cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
-            # object found
-            if (contours):
-                cnt = contours[0]
-                M = cv2.moments(cnt)
+            edged = cv2.Canny(gray, 50, 150)
+            contours, _ = cv2.findContours(edged.copy(), cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
 
-                cntr = (int(M['m10'] / M['m00']), int(M['m01'] / M['m00']))
-                # apply PID control
-                errx = self.distance(cntr, 0, 640)
-                erry = self.distance(cntr, 1, 360)
-                if (self.alt > 0):
+            # object found
+            for cnt in contours:
+                M = cv2.moments(cnt)
+                cntr_area = int(M['m00'])
+
+                if (cntr_area > 150):
+                    cntr = (int(M['m10'] / M['m00']), int(M['m01'] / M['m00']))
+                    # apply PID control
+                    errx = self.distance(cntr, 0, 640)
+                    erry = self.distance(cntr, 1, 360)
                     (x, y) = self.pid.compute_control_command(errx, erry)
+                    #print x, y
                     self.drone.move(x, y, 0, 0)
 
-                cv2.circle(frame, cntr, 6, (255, 255, 255), 4)
-            else:
-                self.drone.hover()
+                    cv2.circle(frame, cntr, 6, (255, 255, 255), 4)
+                else:
+                    self.drone.hover()
 
-            cv2.imshow('Video', edged)
+            cv2.imshow('Video', frame)
         except:
             pass
 
     def process_video(self):
         pygame.init()
-        clock = pygame.time.Clock()
         running = True
         camera = cv2.VideoCapture('tcp://192.168.1.1:5555')
         while running:
@@ -264,14 +263,10 @@ class GCS:
                         elif event.key == pygame.K_b:
                             self.drone.config('video:video_channel','1')
 
-                # grab extra frames to empty buffer and avoid lag
-                camera.grab()
+                # grab extra frame to empty buffer and avoid lag
                 camera.grab()
                 _, frame = camera.read()
-                #self.find_qr(frame)
                 self.find_colored_object(frame, 'red')
-                # limit fps
-                clock.tick(self.fps)
             except:
                 pass
 
@@ -346,7 +341,7 @@ class GCS:
                 # reread background to clear everything
                 flight_data = cv2.imread(self.flight_data_bg, 1)
                 bat = self.drone.navdata.get(0).get('battery')
-                self.alt = self.drone.navdata.get(0).get('altitude')
+                alt = self.drone.navdata.get(0).get('altitude')
                 pitch = self.drone.navdata.get(0).get('theta') * 2
                 roll = self.drone.navdata.get(0).get('phi') * 4
                 yaw = self.drone.navdata.get(0).get('psi')
@@ -357,7 +352,7 @@ class GCS:
                 cv2.fillPoly(flight_data, pts =[cntr2], color=ground_color)
                 cv2.line(flight_data, (300, 160), (340, 160), txt_color)
                 cv2.putText(flight_data, 'Bat : ' + str(bat) + '%', (10, start + space), font, txt_size, txt_color, 1, 1, False)
-                cv2.putText(flight_data, 'Alt : ' + str(self.alt) + 'cm', (10, start + (space * 2)), font, txt_size, txt_color, 1, 1, False)
+                cv2.putText(flight_data, 'Alt : ' + str(alt) + 'cm', (10, start + (space * 2)), font, txt_size, txt_color, 1, 1, False)
 
                 if (self.use_gps):
                     lat = self.gps_data[0]
