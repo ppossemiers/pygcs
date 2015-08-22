@@ -9,7 +9,7 @@ import threading
 
 # https://cranklin.wordpress.com/2014/11/14/artificial-intelligence-applied-to-your-drone
 class PID:
-    def __init__(self, Kpx=0.03, Kpy=0.03, Kdx=0.2, Kdy=0.2, Kix=0, Kiy=0):
+    def __init__(self, Kpx=0.25, Kpy=0.25, Kdx=0.25, Kdy=0.25, Kix=0, Kiy=0):
         self.Kpx = Kpx
         self.Kpy = Kpy
         self.Kdx = Kdx
@@ -168,6 +168,11 @@ class GCS:
         except:
             pass
 
+    def distance_to_object(self, object):
+        # TODO : calculate focalLength more precisely
+        # http://www.pyimagesearch.com/2015/01/19/find-distance-camera-objectmarker-using-python-opencv/
+        return (6.0 * 225.441792806) / object[1][0]
+
     # follow simple colored object in frame
     def follow_colored_object(self, frame, color):
         try:
@@ -188,8 +193,9 @@ class GCS:
             edged = cv2.Canny(gray, 50, 150)
             contours, _ = cv2.findContours(edged.copy(), cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
 
-            # object found
-            for cnt in contours:
+            # contours found
+            if (contours):
+                cnt = max(contours, key = cv2.contourArea)
                 M = cv2.moments(cnt)
                 cntr_area = int(M['m00'])
 
@@ -197,12 +203,14 @@ class GCS:
                     cntr = (int(M['m10'] / M['m00']), int(M['m01'] / M['m00']))
                     # apply PID control
                     errx = self.distance(cntr, 0, 640)
-                    erry = self.distance(cntr, 1, 360)
+                    erry = -self.distance(cntr, 1, 360)
                     (x, y) = self.pid.compute_control_command(errx, erry)
                     #print x, y
-                    self.drone.move(x, y, 0, 0)
-
+                    self.drone.move(x, 0, y, 0)
                     cv2.circle(frame, cntr, 6, (255, 255, 255), 4)
+
+                    #print self.distance_to_object(cv2.minAreaRect(cnt))
+                    #cv2.imwrite('./video/frame.png', frame)
                 else:
                     self.drone.hover()
 
@@ -266,7 +274,7 @@ class GCS:
                 # grab extra frame to empty buffer and avoid lag
                 camera.grab()
                 _, frame = camera.read()
-                self.find_colored_object(frame, 'red')
+                self.follow_colored_object(frame, 'red')
             except:
                 pass
 
