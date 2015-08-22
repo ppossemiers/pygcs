@@ -168,8 +168,8 @@ class GCS:
         except:
             pass
 
-    # find simple colored object in frame
-    def find_colored_object(self, frame, color):
+    # follow simple colored object in frame
+    def follow_colored_object(self, frame, color):
         try:
             if (color == 'red'):
                 lower = np.array(self.red[0], dtype = "uint8")
