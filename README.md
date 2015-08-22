@@ -12,3 +12,7 @@ goal is to implement a VSLAM solution.
 
 There is also support for autonomous flight. The Arduino can send commands to the ARDrone through sockets. For
 this to work, arduinoProxy.c must be compiled, uploaded and started on the ARDrone.
+
+Here is a screenshot :
+
+![alt tag](https://raw.github.com/ppossemiers/pygcs/master/screenshot.png)
