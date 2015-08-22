@@ -9,7 +9,7 @@ import threading
 
 # https://cranklin.wordpress.com/2014/11/14/artificial-intelligence-applied-to-your-drone
 class PID:
-    def __init__(self, Kpx=0.25, Kpy=0.25, Kdx=0.25, Kdy=0.25, Kix=0, Kiy=0):
+    def __init__(self, Kpx=0.5, Kpy=0.5, Kdx=0.5, Kdy=0.5, Kix=0, Kiy=0):
         self.Kpx = Kpx
         self.Kpy = Kpy
         self.Kdx = Kdx
@@ -206,7 +206,7 @@ class GCS:
                     erry = -self.distance(cntr, 1, 360)
                     (x, y) = self.pid.compute_control_command(errx, erry)
                     #print x, y
-                    self.drone.move(x, 0, y, 0)
+                    self.drone.move(0, 0, y, x)
                     cv2.circle(frame, cntr, 6, (255, 255, 255), 4)
 
                     #print self.distance_to_object(cv2.minAreaRect(cnt))
