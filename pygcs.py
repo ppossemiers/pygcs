@@ -5,7 +5,7 @@ to deal in the Software without restriction, including without limitation the ri
 and/or sell copies of the Software, and to permit persons to whom the Software is furnished to do so, subject to the following conditions:
 The above copyright notice and this permission notice shall be included in all copies or substantial portions of the Software.
 THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER 
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS
 IN THE SOFTWARE.
 '''
@@ -21,7 +21,7 @@ import threading
 
 # https://cranklin.wordpress.com/2014/11/14/artificial-intelligence-applied-to-your-drone
 class PID:
-    def __init__(self, Kpx=0.5, Kpy=0.5, Kdx=0.5, Kdy=0.5, Kix=0, Kiy=0):
+    def __init__(self, Kpx=0.5, Kpy=0.4, Kdx=0.5, Kdy=0.4, Kix=0, Kiy=0):
         self.Kpx = Kpx
         self.Kpy = Kpy
         self.Kdx = Kdx
@@ -132,8 +132,8 @@ class GCS:
         c = 2 * math.atan2(math.sqrt(a), math.sqrt(1-a))
         return R * c
 
-    # find center of qr code in frame
-    def find_qr(self, frame):
+    # follow a qr code
+    def follow_qr(self, frame):
         try:
             gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
             blurred = cv2.GaussianBlur(gray, (7, 7), 0)
@@ -145,36 +145,72 @@ class GCS:
             corner_a, corner_b, corner_c = None, None, None
 
             for component in z:
-                current_contour = component[0]
-                current_hierarchy = component[1]
-                peri = cv2.arcLength(current_contour, True)
-                approx = cv2.approxPolyDP(current_contour, 0.01 * peri, True)
+                currentContour = component[0]
+                currentHierarchy = component[1]
+                peri = cv2.arcLength(currentContour, True)
+                approx = cv2.approxPolyDP(currentContour, 0.01 * peri, True)
 
                 # this could be a square
                 if len(approx) >= 4 and len(approx) <= 6:
                     (x, y, w, h) = cv2.boundingRect(approx)
-                    aspect_ratio = w / float(h)
+                    aspectRatio = w / float(h)
 
-                    area = cv2.contourArea(current_contour)
-                    hull_area = cv2.contourArea(cv2.convexHull(current_contour))
-                    solidity = area / float(hull_area)
+                    area = cv2.contourArea(currentContour)
+                    hullArea = cv2.contourArea(cv2.convexHull(currentContour))
+                    solidity = area / float(hullArea)
 
                     # it's a square!
                     if ((solidity > 0.9)
-                        and (aspect_ratio >= 0.9 and aspect_ratio <= 1.1)):
+                        and (aspectRatio >= 0.9 and aspectRatio <= 1.1)):
                         child_count = 0
 
                         # find all of it's children
-                        while current_hierarchy[2] > -1:
+                        while currentHierarchy[2] > -1:
                             child_count += 1
-                            current_hierarchy = z[current_hierarchy[2]][1]
+                            currentHierarchy = z[currentHierarchy[2]][1]
 
                         # it looks like a QR corner
                         if child_count > 4:
                             # get the center
-                            M = cv2.moments(current_contour)
-                            center_qr = (int(M['m10'] / M['m00']), int(M['m01'] / M['m00']))
-                            cv2.circle(frame, center_qr, 6, (0, 0, 255), 4)
+                            M = cv2.moments(approx)
+                            cntr = [int(M['m10'] / M['m00']), int(M['m01'] / M['m00'])]
+
+                            if corner_a == None and corner_b == None and corner_c == None:
+                                corner_a = cntr
+                            elif corner_a != None and corner_b == None and corner_c == None:
+                                corner_b = cntr
+                            elif corner_a != None and corner_b != None and corner_c == None:
+                                corner_c = cntr
+
+                            # we have 3 corner points
+                            if corner_a != None and corner_b != None and corner_c != None:
+                                pts = np.array([corner_a, corner_b, corner_c], np.int32)
+                                center_qr = None
+
+                                # get length of sides of the triangle
+                                AB = np.sqrt((corner_a[0] - corner_b[0]) * (corner_a[0] - corner_b[0]) + (corner_a[1] - corner_b[1]) * (corner_a[1] - corner_b[1]))
+                                BC = np.sqrt((corner_b[0] - corner_c[0]) * (corner_b[0] - corner_c[0]) + (corner_b[1] - corner_c[1]) * (corner_b[1] - corner_c[1]))
+                                CA = np.sqrt((corner_c[0] - corner_a[0]) * (corner_c[0] - corner_a[0]) + (corner_c[1] - corner_a[1]) * (corner_c[1] - corner_a[1]))
+
+                                # find hypotenuse center
+                                if BC > AB and BC > CA:
+                                    center_qr = ((corner_b[0] + corner_c[0]) / 2, (corner_b[1] + corner_c[1]) / 2)
+                                elif CA > AB and CA > BC:
+                                    center_qr = ((corner_c[0] + corner_a[0]) / 2, (corner_c[1] + corner_a[1]) / 2)
+                                elif AB > BC and AB > CA:
+                                    center_qr = ((corner_a[0] + corner_b[0]) / 2, (corner_a[1] + corner_b[1]) / 2)
+
+                                #cv2.polylines(frame, [pts], True, (0, 255, 0), 4)
+                                if center_qr != None:
+                                    # apply PID control
+                                    errx =  self.distance(center_qr, 0, 640)
+                                    erry = -self.distance(center_qr, 1, 360)
+                                    (x, y) = self.pid.compute_control_command(errx, erry)
+                                    #print x, y
+                                    self.drone.move(0, 0, y, x)
+
+                                    # draw a circle around the center
+                                    cv2.circle(frame, center_qr, 6, (0, 0, 255), 4)
 
             cv2.imshow('Video', frame)
         except:
@@ -219,7 +255,7 @@ class GCS:
                     (x, y) = self.pid.compute_control_command(errx, erry)
                     #print x, y
                     self.drone.move(0, 0, y, x)
-                    cv2.circle(frame, cntr, 6, (255, 255, 255), 4)
+                    cv2.circle(frame, cntr, 6, (0, 0, 255), 4)
 
                     #print self.distance_to_object(cv2.minAreaRect(cnt))
                     #cv2.imwrite('./video/frame.png', frame)
