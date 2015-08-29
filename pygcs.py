@@ -289,6 +289,8 @@ class GCS:
                         # reset
                         elif event.key == pygame.K_r:
                             self.drone.reset()
+                        elif event.key == pygame.K_h:
+                            self.drone.hover()
                         # forward / backward
                         elif event.key == pygame.K_w:
                             self.drone.move_up()
