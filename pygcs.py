@@ -358,6 +358,7 @@ class GCS:
                     prev_wp = wp
 
                 gps_string = sock.recv(1024).rstrip('\n')
+                print gps_string
                 # lat, lon, alt, course, speed, satellites
                 self.gps_data = gps_string.split()
                 # update frequency of gps is 1Hz, but we force the process
