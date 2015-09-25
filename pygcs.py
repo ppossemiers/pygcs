@@ -55,6 +55,7 @@ class GCS:
         self.drone.config('control:outdoor', 'TRUE')
         self.drone.config('control:flight_without_shell', 'TRUE')
         self.drone.config('control:altitude_max', '25000')
+        self.takeoff = False
 
         self.pid = PID()
         self.map_center = map_center
@@ -137,6 +138,7 @@ class GCS:
     # follow a qr code
     def follow_qr(self, frame):
         try:
+            found = False
             gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
             blurred = cv2.GaussianBlur(gray, (7, 7), 0)
             edged = cv2.Canny(blurred, 50, 150)
@@ -209,19 +211,26 @@ class GCS:
                                     erry = -self.distance(center_qr, 1, 360)
                                     (x, y) = self.pid.compute_control_command(errx, erry)
                                     #print x, y
-                                    self.drone.move(0, 0, y, x)
+                                    found = True
+                                    if self.takeoff:
+                                        self.drone.move(0, 0, y, x)
 
                                     # draw a circle around the center
                                     cv2.circle(frame, center_qr, 6, (0, 0, 255), 4)
+                                    print self.distance_to_object(cv2.minAreaRect(currentContour))
+
+            if found == False and self.takeoff == True:
+                self.drone.hover()
 
             cv2.imshow('Video', frame)
+            # save the frames
+            #cv2.imwrite('frame' + str(i) + '.jpg', frame)
         except:
             pass
 
     def distance_to_object(self, object):
-        # TODO : calculate focalLength more precisely
         # http://www.pyimagesearch.com/2015/01/19/find-distance-camera-objectmarker-using-python-opencv/
-        return (6.0 * 225.441792806) / object[1][0]
+        return (21.5 * 187.18255633) / object[1][0]
 
     # follow simple colored object in frame
     def follow_colored_object(self, frame, color):
@@ -255,14 +264,13 @@ class GCS:
                     errx = self.distance(cntr, 0, 640)
                     erry = -self.distance(cntr, 1, 360)
                     (x, y) = self.pid.compute_control_command(errx, erry)
-                    #print x, y
-                    self.drone.move(0, 0, y, x)
-                    cv2.circle(frame, cntr, 6, (0, 0, 255), 4)
 
-                    #print self.distance_to_object(cv2.minAreaRect(cnt))
-                    #cv2.imwrite('./video/frame.png', frame)
+                    if self.takeoff:
+                        self.drone.move(0, 0, y, x)
+                    cv2.circle(frame, cntr, 6, (0, 0, 255), 4)
                 else:
-                    self.drone.hover()
+                    if self.takeoff:
+                        self.drone.hover()
 
             cv2.imshow('Video', frame)
         except:
@@ -277,15 +285,17 @@ class GCS:
                 for event in pygame.event.get():
                     if event.type == pygame.QUIT:
                         running = False
-                    #elif event.type == pygame.KEYUP:
-                    #    self.drone.hover()
+                    elif event.type == pygame.KEYUP:
+                        self.drone.hover()
                     elif event.type == pygame.KEYDOWN:
                         if event.key == pygame.K_ESCAPE:
                             self.drone.land()
                             running = False
+                            self.takeoff = False
                         # takeoff / land
                         elif event.key == pygame.K_RETURN:
                             self.drone.takeoff()
+                            self.takeoff = True
                         elif event.key == pygame.K_SPACE:
                             self.drone.land()
                         # reset
@@ -326,7 +336,7 @@ class GCS:
                 # grab extra frame to empty buffer and avoid lag
                 camera.grab()
                 _, frame = camera.read()
-                self.follow_colored_object(frame, 'red')
+                self.follow_qr(frame)
             except:
                 pass
 
@@ -365,8 +375,6 @@ class GCS:
                     prev_wp = wp
 
                 gps_string = sock.recv(1024).rstrip('\n')
-                if len(gps_string) > 0:
-                    print gps_string
                 # lat, lon, alt, course, speed, satellites
                 self.gps_data = gps_string.split()
                 # update frequency of gps is 1Hz, but we force the process

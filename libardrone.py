@@ -21,7 +21,6 @@
 """
 Python library for the AR.Drone.
 
-This module was tested with Python 2.6.6 and AR.Drone vanilla firmware 1.5.1.
 """
 
 import socket
