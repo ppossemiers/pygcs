@@ -21,9 +21,13 @@ import sys
 import socket
 import threading
 
+RED = ([17, 15, 100], [50, 56, 200])
+BLUE = ([86, 31, 4], [220, 88, 50])
+YELLOW = ([25, 146, 190], [62, 174, 250])
+
 # https://cranklin.wordpress.com/2014/11/14/artificial-intelligence-applied-to-your-drone
 class PID:
-    def __init__(self, Kpx=0.5, Kpy=0.4, Kdx=0.5, Kdy=0.4, Kix=0, Kiy=0):
+    def __init__(self, Kpx=0.7, Kpy=0.8, Kdx=0.5, Kdy=0.5, Kix=0, Kiy=0):
         self.Kpx = Kpx
         self.Kpy = Kpy
         self.Kdx = Kdx
@@ -55,7 +59,6 @@ class GCS:
         self.drone.config('control:outdoor', 'TRUE')
         self.drone.config('control:flight_without_shell', 'TRUE')
         self.drone.config('control:altitude_max', '25000')
-        self.takeoff = False
 
         self.pid = PID()
         self.map_center = map_center
@@ -67,10 +70,6 @@ class GCS:
         self.flight_data_bg = 'flight_data.png'
         self.gps_data = []
         self.waypoints = []
-
-        self.red = ([17, 15, 100], [50, 56, 200])
-        self.blue = ([86, 31, 4], [220, 88, 50])
-        self.yellow = ([25, 146, 190], [62, 174, 250])
 
         # gps tracking
         if (self.use_gps):
@@ -174,7 +173,7 @@ class GCS:
                             currentHierarchy = z[currentHierarchy[2]][1]
 
                         # it looks like a QR corner
-                        if child_count > 4:
+                        if child_count > 2:
                             # get the center
                             M = cv2.moments(approx)
                             cntr = [int(M['m10'] / M['m00']), int(M['m01'] / M['m00'])]
@@ -208,22 +207,23 @@ class GCS:
                                 if center_qr != None:
                                     # apply PID control
                                     errx =  self.distance(center_qr, 0, 640)
-                                    erry = -self.distance(center_qr, 1, 360)
+                                    #erry = -self.distance(center_qr, 1, 360)
+                                    erry = 75.0 - self.distance_to_object(cv2.minAreaRect(currentContour))
                                     (x, y) = self.pid.compute_control_command(errx, erry)
-                                    #print x, y
                                     found = True
-                                    if self.takeoff:
-                                        self.drone.move(0, 0, y, x)
+                                    for _ in range(2):
+                                        self.drone.move(0, y, 0, x)
 
                                     # draw a circle around the center
                                     cv2.circle(frame, center_qr, 6, (0, 0, 255), 4)
-                                    print self.distance_to_object(cv2.minAreaRect(currentContour))
 
-            if found == False and self.takeoff == True:
+            # no qr found, so hover
+            if (found == False):
                 self.drone.hover()
 
             cv2.imshow('Video', frame)
-            # save the frames
+
+            # save the frame
             #cv2.imwrite('frame' + str(i) + '.jpg', frame)
         except:
             pass
@@ -236,14 +236,14 @@ class GCS:
     def follow_colored_object(self, frame, color):
         try:
             if (color == 'red'):
-                lower = np.array(self.red[0], dtype = "uint8")
-                upper = np.array(self.red[1], dtype = "uint8")
+                lower = np.array(RED[0], dtype = "uint8")
+                upper = np.array(RED[1], dtype = "uint8")
             elif (color == 'blue'):
-                lower = np.array(self.blue[0], dtype = "uint8")
-                upper = np.array(self.blue[1], dtype = "uint8")
+                lower = np.array(BLUE[0], dtype = "uint8")
+                upper = np.array(BLUE[1], dtype = "uint8")
             elif (color == 'yellow'):
-                lower = np.array(self.yellow[0], dtype = "uint8")
-                upper = np.array(self.yellow[1], dtype = "uint8")
+                lower = np.array(YELLOW[0], dtype = "uint8")
+                upper = np.array(YELLOW[1], dtype = "uint8")
 
             mask = cv2.inRange(frame, lower, upper)
             filtered = cv2.bitwise_and(frame, frame, mask = mask)
@@ -265,12 +265,10 @@ class GCS:
                     erry = -self.distance(cntr, 1, 360)
                     (x, y) = self.pid.compute_control_command(errx, erry)
 
-                    if self.takeoff:
-                        self.drone.move(0, 0, y, x)
+                    self.drone.move(0, 0, y, x)
                     cv2.circle(frame, cntr, 6, (0, 0, 255), 4)
                 else:
-                    if self.takeoff:
-                        self.drone.hover()
+                    self.drone.hover()
 
             cv2.imshow('Video', frame)
         except:
@@ -280,6 +278,7 @@ class GCS:
         pygame.init()
         running = True
         camera = cv2.VideoCapture('tcp://192.168.1.1:5555')
+
         while running:
             try:
                 for event in pygame.event.get():
@@ -291,11 +290,9 @@ class GCS:
                         if event.key == pygame.K_ESCAPE:
                             self.drone.land()
                             running = False
-                            self.takeoff = False
                         # takeoff / land
                         elif event.key == pygame.K_RETURN:
                             self.drone.takeoff()
-                            self.takeoff = True
                         elif event.key == pygame.K_SPACE:
                             self.drone.land()
                         # reset
